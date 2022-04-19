@@ -1,0 +1,168 @@
+# ----------------------------------------------------------------------------
+# Description
+# ----------------------------------------------------------------------------
+
+# experiment_config.yaml: 
+# settings related to the experiment being run when the bandit.py script is 
+# launched, it is imported as a Python dictionary object
+
+# for more details about specifying this file, see:
+# http://www.isolver-solutions.com/iohubdocs/iohub/api_and_manual/iohub_process/config_files.html
+
+# there is a custom "parameters" section that modifies the behavior of the 
+# experimental task and the appearance (colors, element sizes etc)
+
+
+# ----------------------------------------------------------------------------
+# Setting up the configuration
+# ----------------------------------------------------------------------------
+
+# ----
+# General experiment information
+# ----
+
+experiment_id: stationary
+title: Values and uncertainty jointly drive the attention dynamics in decision making
+code: UncertaintyAttentionRL
+version: '1.6'
+description: This study examines attention in reinforcement learning tasks, examining the hypothesis that option values and uncertainty about the values jointly drive the attention dynamics.
+display_experiment_dialog: True
+
+
+# ----
+# Setting important parameters for the experiment 
+# ----
+
+parameters:
+    # main modifier, do we run it as a pure behavioral experiment or with 
+    # the eyetracker
+    EyeTracking: True
+    # verbose mode - if set to true, 
+    # various messages will be print to console
+    verbose: True
+    # practice trials?
+    practice: True 
+    noPracticeTrials: 7
+    noPracticeTrialsInstructions: 2
+
+    ### Trial structure
+
+    # pupil baseline measurement duration, before each game
+    pupilBaselineDuration: 40
+    pupilCameraDuration: 40
+    # inter trial interval drawn from the uniform interval
+    aITI: 5
+    bITI: 5.5
+    # beh mode: for how long to show the fixation cross (in seconds)
+    fixationTime: 1
+    # for how long to show the stimulus (in seconds)
+    stimulusTime: 5
+    stimulusTimePractice: 10
+    # smooth transition duration between phases
+    fadingDuration: 0.5
+    # for how long to allow a response (in seconds)
+    choiceTime: 1.5
+    choiceTimePractice: 6
+    lateChoiceColor: "#A4694F"  
+    # inter feedback interval drawn from the uniform interval
+    aFI: 2
+    bFI: 2.5
+    feedbackDuration: 3
+    feedbackDurationPractice: 5
+    visibility: chosenArm
+    # define the key during the task 
+    taskKey: ' '
+    # keys
+    backKey: left
+    continueKey: right
+    abortKeys: [lctrl, q]
+    calKeys: [lctrl, p]
+    # end result together with the show up fee? in pounds
+    showUpFee: 100
+    # fee for failing to respond in a trial
+    missingFee: 6
+    # do we randomize the game order and arm order
+    randomizeGames: True
+    randomizeArms: once  # options: once, everytrial or None
+
+    ### Fixations 
+
+    # gaze dot specs, for debugging
+    gazeDotShow: False
+    gazeDotSize: 1.5
+    gazeDotColor: '#C9B9B9'
+    # AOI for the object for which we are examining the fixations
+    AOIradius: 3  # radius around fixation location
+    AOIduration: 1
+    AOIthreshold: 0.9
+
+    ### Screen layout 
+
+    # the units we will use, units specified in shapes depend on this setting
+    units: cm
+
+    backgroundColor: "#457CA9" 
+    gameColors: ["#457CA9", "#457CA9"]
+
+    instructionsTextColor: "#A4694F"  
+    instructionsTextSize: 1
+    instructionsWrapWidth: 25
+
+    practiceTextColor: "#A4694F"  
+    practiceTextSize: 0.8
+    practiceWrapWidth: 8
+
+    fixColor: "#A4694F"  
+    fixLineWidth: 5
+    fixSize: 0.5
+
+    feedbackOpacity: 0.8
+    feedbackTextColor: "#A4694F"  
+    feedbackTextSize: 1
+    feedbackPos: -0.65
+
+    armBoxColor: "#A4694F"  
+    armBoxRadius: 3
+    armBoxLineWidth: 2.6
+    imgSize: [4,4]
+    armDistance: 9
+
+    ### Paths to stimuli and instruction files
+
+    # path for loading stimuli specifications from the external file 
+    choiceSpecsPath: stimuli/choiceSpecs_stationary.csv
+    # path to instruction files
+    startInstructionsPath: instructions/startInstructions_stationary.md
+    startGameReportPath: instructions/startGameReport_stationary.md
+    endGameReportPath: instructions/endGameReport_stationary.md
+    endExpReportPath: instructions/endExpReport.md
+    pupilBaselinePath: instructions/pupilBaseline.md
+    pupilCameraPath: instructions/pupilCamera.md
+    trackerCalibrationPath: instructions/trackerCalibration.md
+    practiceStartPath: instructions/practiceStart.md
+    practiceEndPath: instructions/practiceEnd.md
+    practiceInstructionsPath: instructions/practiceInstructions.md
+    # path to the slot machine image
+    imgPracticeDir: practice
+    imgDir: img
+    
+
+# ----
+# Experiment session metadata and user defined custom parameters
+# ----
+
+session_defaults:
+    name: Leave blank
+    code: Session ID, has to be a unique number
+    comments: Ensure the participant's dominant eye is tracked and that the data collection room's light are turned off before the experiment begins.
+    user_variables: 
+        seed: Randomization seed (from 100 to 999)
+session_variable_order: [name, code, seed, comments]
+display_session_dialog: True  
+
+# enable iohub
+ioHub:
+    enable: True
+    config: iohub_config.yaml
+
+  

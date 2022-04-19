@@ -1,0 +1,181 @@
+# ----------------------------------------------------------------------------
+# Description
+# ----------------------------------------------------------------------------
+
+# iohub_config.yaml: 
+# settings related to the devices that iohub will use when executing the
+# the bandit.py script, file is imported as a Python dictionary object
+
+# for more details about specifying this file, see:
+# http://www.isolver-solutions.com/iohubdocs/iohub/api_and_manual/iohub_process/config_files.html
+
+# display and eye tracker section are particularly important, they 
+# should be adapted to the setup in the lab, if this is correctly set up
+# code in the bandit.py does not have to be modified at all, even if
+# different equipment is used
+
+
+# ----------------------------------------------------------------------------
+# Setting up the configuration
+# ----------------------------------------------------------------------------
+
+# iohub data storage, uses HDF5 through pytables
+data_store:
+    enable: True
+    filename: dataTracking
+    storage_type: pytables
+    multiple_experiments: False
+    flush_interval: 32
+
+# devices
+monitor_devices:
+
+    # DEFAULT: psychopy.iohub.devices.display.default_display.yaml
+    # 1) work desktop display
+    # - Display:
+    #     name: display
+    #     reporting_unit_type: cm
+    #     device_number: 0
+    #     physical_dimensions:
+    #         width: 518.4
+    #         height: 324
+    #         unit_type: mm
+    #     default_eye_distance:
+    #         surface_center: 500
+    #         unit_type: mm
+    #     psychopy_monitor_name: work
+    #     override_using_psycho_settings: False
+    #     model_name: Z Display 
+    #     model_number: Z24i
+    #     manufacturer_name: HP
+    #     serial_number: CN44411J2R
+    #     pixel_dimensions: 
+    #         width: 1920
+    #         height: 1200
+    #         unit_type: pix
+
+    # 2) laptop display
+    # - Display:
+    #     name: display
+    #     reporting_unit_type: cm
+    #     device_number: 0
+    #     physical_dimensions:
+    #         width: 300
+    #         height: 168
+    #         unit_type: mm
+    #     default_eye_distance:
+    #         surface_center: 500
+    #         unit_type: mm
+    #     psychopy_monitor_name: Lenovo
+    #     override_using_psycho_settings: False
+    #     model_name: X
+    #     model_number: X
+    #     manufacturer_name: Lenovo
+    #     serial_number: X
+    #     pixel_dimensions: 
+    #         width: 1920
+    #         height: 1080
+    #         unit_type: pix
+
+    # 3) eye tracker room MPC display
+    # - Display:
+    #     name: display
+    #     reporting_unit_type: cm
+    #     device_number: 1
+    #     physical_dimensions:
+    #         width: 444.5
+    #         height: 365.8
+    #         unit_type: mm
+    #     default_eye_distance:
+    #         surface_center: 500
+    #         unit_type: mm
+    #     psychopy_monitor_name: EyeLink
+    #     override_using_psycho_settings: False
+    #     model_name: UltraSharp
+    #     model_number: 2007FPb
+    #     manufacturer_name: Dell
+    #     serial_number: 2007FPb
+    #     pixel_dimensions: 
+    #         width: 1600
+    #         height: 1200
+    #         unit_type: pix
+
+    # 3) EEG room WTCHN display
+    - Display:
+        name: display
+        reporting_unit_type: cm
+        device_number: 0
+        physical_dimensions:
+            width: 408
+            height: 306
+            unit_type: mm
+        default_eye_distance:
+            surface_center: 730
+            unit_type: mm
+        psychopy_monitor_name: EyeLink
+        override_using_psycho_settings: False
+        model_name: UltraSharp
+        model_number: 2001FP
+        manufacturer_name: Dell
+        serial_number: 2001FP
+        pixel_dimensions: 
+            width: 1600
+            height: 1200
+            unit_type: pix
+
+    # DEFAULT: psychopy.iohub.devices.keyboard.default_keyboard.yaml
+    - Keyboard:
+        name: keyboard
+        monitor_event_types: [KeyboardPressEvent]
+        report_system_wide_events: True
+        save_events: False
+        event_buffer_length: 256
+
+    # DEFAULT: psychopy.iohub.devices.mouse.default_mouse.yaml
+    - Mouse:
+        name: mouse
+        monitor_event_types:  [MouseMoveEvent, MouseDragEvent, MouseScrollEvent, MouseButtonPressEvent, MouseButtonReleaseEvent, MouseMultiClickEvent]
+        report_system_wide_events: False
+        save_events: False
+        event_buffer_length: 256
+
+    - Experiment:
+        name: experimentRuntime
+
+    # SRR EyeLink Config (uncomment to use)
+    - eyetracker.hw.sr_research.eyelink.EyeTracker:
+        name: tracker
+        save_events: True
+        stream_events: True
+        device_timer:
+            interval: 0.001
+        monitor_event_types: [ MonocularEyeSampleEvent, FixationEndEvent, BlinkEndEvent, SaccadeEndEvent, FixationStartEvent, BlinkStartEvent, SaccadeStartEvent]
+        simulation_mode: False
+        #make sure this is set to False unless you don't want to use the ET
+        enable_interface_without_connection: False
+        network_settings: 100.1.1.1
+        default_native_data_file_name: et_data
+        runtime_settings:
+            sampling_rate: 500
+            track_eyes: RIGHT_EYE
+            sample_filtering:
+                FILTER_ONLINE: FILTER_OFF
+            vog_settings:
+                pupil_measure_types: PUPIL_AREA
+                tracking_mode: PUPIL_CR_TRACKING
+                pupil_center_algorithm: CENTROID_FIT
+        calibration:
+            type: THIRTEEN_POINTS
+            auto_pace: True
+            pacing_speed: 2.5
+            screen_background_color: [69,124,169]
+            target_type: CIRCLE_TARGET
+            target_attributes:
+                # outer_diameter and inner_diameter are specified in pixels
+                outer_diameter: 35
+                inner_diameter: 5
+                outer_color: [164, 105, 79]  # [242,242,242] 
+                inner_color: [69,124,169]
+        model_name: EYELINK 1000 DESKTOP
+
+
