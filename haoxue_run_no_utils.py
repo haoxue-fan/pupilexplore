@@ -5,6 +5,8 @@
 
 from __future__ import division
 from __future__ import print_function
+from asyncio import wait_for
+from multiprocessing import dummy
 
 import pylink
 import os
@@ -16,6 +18,7 @@ from EyeLinkCoreGraphicsPsychoPy import EyeLinkCoreGraphicsPsychoPy
 from psychopy import visual, core, event, monitors, gui
 from PIL import Image  # for preparing the Host backdrop image
 from string import ascii_letters, digits
+from haoxue_utils import * 
 import numpy as np
 
 # Switch to the script folder
@@ -179,7 +182,7 @@ if eyelink_ver > 2:
 el_tracker.sendCommand("calibration_type = HV9")
 # Set a gamepad button to accept calibration/drift check target
 # You need a supported gamepad/button box that is connected to the Host PC
-# Haoxue: I do not think we have this? If not what can we do to accetpt calibration/drift check?
+# Haoxue: I do not think we have this?
 # el_tracker.sendCommand("button_function 5 'accept_target_fixation'")
 
 # Step 4: set up a graphics environment for calibration
@@ -269,98 +272,6 @@ pylink.openGraphicsEx(genv)
 # define a few helper functions for trial handling
 
 
-def clear_screen(win):
-    """ clear up the PsychoPy window"""
-
-    win.fillColor = genv.getBackgroundColor()
-    win.flip()
-
-
-def show_msg(win, text, msgcolor, wait_for_keypress=True):
-    """ Show task instructions on screen"""
-    msg = visual.TextStim(win, text,
-                          color=msgcolor,
-                          wrapWidth=scn_width/2)
-    clear_screen(win)
-    msg.draw()
-    win.flip()
-
-    # wait indefinitely, terminates upon any key press
-    if wait_for_keypress:
-        event.waitKeys()
-        clear_screen(win)
-
-
-def terminate_task():
-    """ Terminate the task gracefully and retrieve the EDF data file
-
-    file_to_retrieve: The EDF on the Host that we would like to download
-    win: the current window used by the experimental script
-    """
-
-    el_tracker = pylink.getEYELINK()
-
-    if el_tracker.isConnected():
-        # Terminate the current trial first if the task terminated prematurely
-        error = el_tracker.isRecording()
-        if error == pylink.TRIAL_OK:
-            abort_trial()
-
-        # Put tracker in Offline mode
-        el_tracker.setOfflineMode()
-
-        # Clear the Host PC screen and wait for 500 ms
-        el_tracker.sendCommand('clear_screen 0')
-        pylink.msecDelay(500)
-
-        # Close the edf data file on the Host
-        el_tracker.closeDataFile()
-
-        # Show a file transfer message on the screen
-        # Haoxue: we want to show this at the very end of the task!
-        msg = 'EDF data is transferring from EyeLink Host PC...'
-        show_msg(win, msg, msgColor, wait_for_keypress=False)
-
-        # Download the EDF data file from the Host PC to a local data folder
-        # parameters: source_file_on_the_host, destination_file_on_local_drive
-        local_edf = os.path.join(session_folder, session_identifier + '.EDF')
-        try:
-            el_tracker.receiveDataFile(edf_file, local_edf)
-        except RuntimeError as error:
-            print('ERROR:', error)
-
-        # Close the link to the tracker.
-        el_tracker.close()
-
-    # close the PsychoPy window
-    win.close()
-
-    # quit PsychoPy
-    core.quit()
-    sys.exit()
-
-
-def abort_trial():
-    """Ends recording """
-
-    el_tracker = pylink.getEYELINK()
-
-    # Stop recording
-    if el_tracker.isRecording():
-        # add 100 ms to catch final trial events
-        pylink.pumpDelay(100)
-        el_tracker.stopRecording()
-
-    # clear the screen
-    clear_screen(win)
-    # Send a message to clear the Data Viewer screen
-    bgcolor_RGB = (116, 116, 116)
-    el_tracker.sendMessage('!V CLEAR %d %d %d' % bgcolor_RGB)
-
-    # send a message to mark trial end
-    el_tracker.sendMessage('TRIAL_RESULT %d' % pylink.TRIAL_ERROR)
-
-    return pylink.TRIAL_ERROR
 
 # define fixation
 # Haoxue: not sure why they do not have color here?
@@ -380,26 +291,6 @@ rectLineWidth = exp_config['rect']['rectLineWidth']
 rectDistCenter = exp_config['rect']['rectDistCenter']
 rectColor = exp_config['rect']['rectColor']
     
-def gen_params(sd_observe, sd_mean_mu, sd_rw, label):
-    machine_iloc = np.random.randint(low=0, high=2, size=1)
-    sd_options = [0, sd_observe]
-    sd_rw_options = [0, sd_rw]
-    curr_mu = np.random.normal(0, sd_mean_mu)
-    curr_sd = sd_options[machine_iloc]
-    curr_label = label[machine_iloc]
-    curr_sd_rw = sd_rw_options[machine_iloc]
-    return curr_mu, curr_sd, curr_label, curr_sd_rw
-  
-def gen_params_array(machine_params, n_trials):
-    mean_array = [0] * n_trials
-    reward_array = [0] * n_trials
-    mean_array[0] = int(np.round(machine_params[0]))
-    reward_array[0] = int(np.round(np.random.normal(machine_params[0], machine_params[1])))
-    for j in range(1, n_trials):
-        mean_array[j] = int(np.round(np.random.normal(mean_array[j-1], machine_params[3])))
-        reward_array[j] = int(np.round(np.random.normal(mean_array[j], machine_params[1])))
-    return mean_array, reward_array
-
 # generate machine for practice
 machine1 = [0, 0, 0, 0]
 machine2 = [0, 0, 0, 0]
@@ -407,15 +298,26 @@ machine2 = [0, 0, 0, 0]
 sd_mean_mu = exp_config['sd_mean_mu']
 sd_observe = exp_config['sd_observe']
 sd_rw = exp_config['sd_rw']
-n_trials = exp_config['n_trials']
+if dummy_mode:
+    n_blocks = exp_config['n_blocks_dummy']
+    n_trials = exp_config['n_trials_dummy']
+else:
+    n_blocks = exp_config['n_blocks']
+    n_trials = exp_config['n_trials']
 
-# generate a pair of machines with differnt mean and different types
-while machine1[0] == machine2[0]:
-  machine1 = [np.random.normal(0, sd_mean_mu), 0, "Stable", 0]
-  machine2 = [np.random.normal(0, sd_mean_mu), sd_observe, "Variable", 0]
-  
-machine1_array = gen_params_array(machine1, n_trials)
-machine2_array = gen_params_array(machine2, n_trials)
+if dummy_mode:
+    fixation_length_min = exp_config['trial']['fixation_length_min_dummy']
+    fixation_length_max = exp_config['trial']['fixation_length_max_dummy']
+    stimulus_pre_with_fixation_length = exp_config['trial']['stimulus_pre_with_fixation_length_dummy']
+    stimulus_pre_without_fixation_length_max = exp_config['trial']['stimulus_pre_without_fixation_length_max_dummy']
+    reward_pre_without_fixation_length = exp_config['trial']['reward_pre_without_fixation_length_dummy']
+else:
+    fixation_length_min = exp_config['trial']['fixation_length_min']
+    fixation_length_max = exp_config['trial']['fixation_length_max']
+    stimulus_pre_with_fixation_length = exp_config['trial']['stimulus_pre_with_fixation_length']
+    stimulus_pre_without_fixation_length_max = exp_config['trial']['stimulus_pre_without_fixation_length_max']
+    reward_pre_without_fixation_length = exp_config['trial']['reward_pre_without_fixation_length']
+
 
 #machine1 = [0, 0, 0, 0]
 #machine2 = [0, 0, 0, 0]
@@ -466,27 +368,42 @@ right_type = visual.TextStim(win,
 left_key = exp_config['keys']['left_key']
 right_key = exp_config['keys']['right_key']
 
-def run_trial(trial_pars, trial_index, bandit_type):
+
+# Step 5: Set up the camera and calibrate the tracker
+# Show the task instructions
+task_msg = ''
+if dummy_mode:
+    task_msg = task_msg + '\nNow, press ENTER to start the task'
+else:
+    task_msg = task_msg + '\nNow, press ENTER twice to calibrate tracker' 
+
+show_msg(win, task_msg, msgColor, wait_for_keypress=True, key_list=['Enter','space'])
+
+# skip this step if running the script in Dummy Mode
+if not dummy_mode:
+    try:
+        el_tracker.doTrackerSetup()
+    except RuntimeError as err:
+        print('ERROR:', err)
+        el_tracker.exitCalibration()
+
+block_end_msg = 'This marks the end of this block.\nTake a rest if you need.\nWhen you are ready, press space to proceed.'
+
+# Step 6: Run the experimental trials, index all the trials
+# Haoxue: here we define run_trial function
+def run_block(block_pars, block_index, curr_cond):
     """ Helper function specifying the events that will occur in a single trial
 
-    trial_pars - a list containing trial parameters, e.g.,
-                ['cond_1', 'img_1.jpg']
-    trial_index - record the order of trial presentation in the task
     """
-    left_type.text = bandit_type[0]
-    right_type.text = bandit_type[1]
     
-    machine1_mean_array, machine1_reward_array = trial_pars[0]
-    machine2_mean_array, machine2_reward_array = trial_pars[1]
+    bandit_type = exp_config['cond'][curr_cond-1]
     
-    # unpacking the trial parameters
-    # cond, pic = trial_pars
-
-    # load the image to display, here we stretch the image to fill full screen
-    # img = visual.ImageStim(win,
-    #                        image=os.path.join('images', pic),
-    #                        size=(scn_width, scn_height))
-
+    machine1_mean_array, machine1_reward_array = block_pars[0]
+    machine2_mean_array, machine2_reward_array = block_pars[1]
+    
+    print('machine1_mean_array:', machine1_mean_array)
+    print('machine1_reward_array:', machine1_reward_array)
+    
     # get a reference to the currently active EyeLink connection
     # Haoxue: I actually do not understand the part below - why do i need to get another eyelink? why do I need to put the thing into offline mode? is that i am constantly open-close eyelink in this process?
     el_tracker = pylink.getEYELINK()
@@ -494,56 +411,13 @@ def run_trial(trial_pars, trial_index, bandit_type):
     # put the tracker in the offline mode first
     el_tracker.setOfflineMode()
 
-    # clear the host screen before we draw the backdrop
-    el_tracker.sendCommand('clear_screen 0')
-
-    # show a backdrop image on the Host screen, imageBackdrop() the recommended
-    # function, if you do not need to scale the image on the Host
-    # parameters: image_file, crop_x, crop_y, crop_width, crop_height,
-    #             x, y on the Host, drawing options
-##    el_tracker.imageBackdrop(os.path.join('images', pic),
-##                             0, 0, scn_width, scn_height, 0, 0,
-##                             pylink.BX_MAXCONTRAST)
-
-    # If you need to scale the backdrop image on the Host, use the old Pylink
-    # bitmapBackdrop(), which requires an additional step of converting the
-    # image pixels into a recognizable format by the Host PC.
-    # pixels = [line1, ...lineH], line = [pix1,...pixW], pix=(R,G,B)
-    #
-    # the bitmapBackdrop() command takes time to return, not recommended
-    # for tasks where the ITI matters, e.g., in an event-related fMRI task
-    # parameters: width, height, pixel, crop_x, crop_y,
-    #             crop_width, crop_height, x, y on the Host, drawing options
-    #
-    # Use the code commented below to convert the image and send the backdrop
-    # im = Image.open('images' + os.sep + pic)  # read image with PIL
-    # im = im.resize((scn_width, scn_height))
-    # img_pixels = im.load()  # access the pixel data of the image
-    # pixels = [[img_pixels[i, j] for i in range(scn_width)]
-    #           for j in range(scn_height)]
-    # el_tracker.bitmapBackdrop(scn_width, scn_height, pixels,
-    #                           0, 0, scn_width, scn_height,
-    #                           0, 0, pylink.BX_MAXCONTRAST)
-
-    # OPTIONAL: draw landmarks and texts on the Host screen
-    # In addition to backdrop image, You may draw simples on the Host PC to use
-    # as landmarks. For illustration purpose, here we draw some texts and a box
-    # For a list of supported draw commands, see the "COMMANDS.INI" file on the
-    # Host PC (under /elcl/exe)
-    # left = int(scn_width/2.0) - 60
-    # top = int(scn_height/2.0) - 60
-    # right = int(scn_width/2.0) + 60
-    # bottom = int(scn_height/2.0) + 60
-    # draw_cmd = 'draw_filled_box %d %d %d %d 1' % (left, top, right, bottom)
-    # el_tracker.sendCommand(draw_cmd)
-
     # send a "TRIALID" message to mark the start of a trial, see Data
     # Viewer User Manual, "Protocol for EyeLink Data to Viewer Integration"
-    el_tracker.sendMessage('TRIALID %d' % trial_index)
+    el_tracker.sendMessage('BLOCKID %d' % block_index)
 
     # record_status_message : show some info on the Host PC
     # here we show how many trial has been tested
-    status_msg = 'TRIAL number %d' % trial_index
+    status_msg = 'BLOCK number %d' % block_index
     el_tracker.sendCommand("record_status_message '%s'" % status_msg)
 
     # Haoxue: potentially thinking about doing drift check once at the beginning of the block
@@ -561,7 +435,7 @@ def run_trial(trial_pars, trial_index, bandit_type):
         # terminate the task if no longer connected to the tracker or
         # user pressed Ctrl-C to terminate the task
         if (not el_tracker.isConnected()) or el_tracker.breakPressed():
-            terminate_task()
+            terminate_task(win)
             return pylink.ABORT_EXPT
 
         # drift-check and re-do camera setup if ESCAPE is pressed
@@ -574,61 +448,77 @@ def run_trial(trial_pars, trial_index, bandit_type):
         except:
             pass
 
-    # put tracker in idle/offline mode before recording
-    el_tracker.setOfflineMode()
+    # # put tracker in idle/offline mode before recording
+    # el_tracker.setOfflineMode()
 
-    # Start recording
-    # arguments: sample_to_file, events_to_file, sample_over_link,
-    # event_over_link (1-yes, 0-no)
-    try:
-        el_tracker.startRecording(1, 1, 1, 1) # question for Deshawn: should I shut it down between blocks? or actually I do not need?
-        # related q: can i do drift check even with the eye track still collecting?
-    except RuntimeError as error:
-        print("ERROR:", error)
-        abort_trial()
-        return pylink.TRIAL_ERROR
+    # # Start recording
+    # # arguments: sample_to_file, events_to_file, sample_over_link,
+    # # event_over_link (1-yes, 0-no)
+    # try:
+    #     el_tracker.startRecording(1, 1, 1, 1) # question for Deshawn: should I shut it down between blocks? or actually I do not need?
+    #     # related q: can i do drift check even with the eye track still collecting?
+    # except RuntimeError as error:
+    #     print("ERROR:", error)
+    #     abort_trial(win)
+    #     return pylink.TRIAL_ERROR
 
-    # Allocate some time for the tracker to cache some samples
-    pylink.pumpDelay(100)
+    # # Allocate some time for the tracker to cache some samples
+    # pylink.pumpDelay(100)
+
+    # start of the block screen
+    block_start_msg = 'Block '+str(block_index)+' of '+str(n_blocks)+\
+        '\nSlot Machines in this block: '+bandit_type[0]+' and '+bandit_type[1]+\
+            '\nPress Space to begin if you are ready.'
+    clear_screen(win) 
+    show_msg(win, block_start_msg, msgColor, wait_for_keypress=True, key_list=['space'])
+    el_tracker.sendMessage('block_end')
+
+    for trial in range(n_trials): # Haouxe: need to figure out a way to save data
+        run_trial(trial, [machine1_reward_array, machine2_reward_array], bandit_type)
+
+    # end of the block screen
+    clear_screen(win) 
+    show_msg(win, block_end_msg, msgColor, wait_for_keypress=True, key_list=['space'])
+    el_tracker.sendMessage('block_end')
+
     
-    
+def run_trial(trial_index, trial_pars, bandit_type):
+    machine1_reward_array, machine2_reward_array = trial_pars
+    left_type.text = bandit_type[0]
+    right_type.text = bandit_type[1]
+
+    # part 0 : talk to eye tracker
+    el_tracker.sendMessage('TRIALID %d' % trial_index)
+    # record_status_message : show some info on the Host PC
+    status_msg = 'TRIAL number %d' % trial_index
+    el_tracker.sendCommand("record_status_message '%s'" % status_msg)
+
     # part 1: fixation (fixation)
-#    clear_screen(win)
+    fixation_length = np.random.uniform(low=fixation_length_min,high=fixation_length_max)
     fixation_onset_time = core.getTime()
     el_tracker.sendMessage('fixation_onset') # Haoxue: add trial number?
-    while core.getTime() - fixation_onset_time <= 1.5:
+    while core.getTime() - fixation_onset_time <= fixation_length:
         fixation.draw()
         win.flip()
     
     # part 2: stimulus presentation (fixation + bandits_type)
-#    clear_screen(win)
     stimulus_pre_with_fixation_onset_time = core.getTime()
     el_tracker.sendMessage('stimulus_pre_with_fixation') 
     
-    while core.getTime() - stimulus_pre_with_fixation_onset_time  <= 1.5: # Haoxue: is core.getTime() an accurate one?
+    while core.getTime() - stimulus_pre_with_fixation_onset_time  <= stimulus_pre_with_fixation_length: # Haoxue: is core.getTime() an accurate one?
         fixation.draw()
         left_rect.draw()
         right_rect.draw()
         left_type.draw()
         right_type.draw()
         win.flip()
-         
     
-    # part 3: choice (bandits)
-#    clear_screen(win)
-#    for frameN in range(300):
-#        left_rect.draw()
-#        right_rect.draw()
-#        left_type.draw()
-#        right_type.draw()
-#        win.flip()
-#        if frameN == 0:
-#            el_tracker.sendMessage('stimulus_presentation_without_fixation')
-#            stimulus_pre_without_fixation_onset_time = core.getTime()
+    # part 3: stimulus presentation + choice (bandits_type)
     stimulus_pre_without_fixation_onset_time = core.getTime()
     el_tracker.sendMessage('stimulus_pre_without_fixation')
+    # remove any existing key press
     event.clearEvents() 
-    while core.getTime() - stimulus_pre_without_fixation_onset_time <= 3:
+    while core.getTime() - stimulus_pre_without_fixation_onset_time <= stimulus_pre_without_fixation_length_max:
         left_rect.draw()
         right_rect.draw()
         left_type.draw()
@@ -636,14 +526,13 @@ def run_trial(trial_pars, trial_index, bandit_type):
         win.flip()
 
         # collect choice in part 3
-        
         RT = -1  # keep track of the response time
         get_keypress = False
         choice = -1 # default choice
 
         while not get_keypress:
             # present the picture for a maximum of 5 seconds
-            if core.getTime() - stimulus_pre_without_fixation_onset_time >= 5.0: # Haoxue: is core.getTime() an accurate one?
+            if core.getTime() - stimulus_pre_without_fixation_onset_time >= stimulus_pre_without_fixation_length_max: # Haoxue: is core.getTime() an accurate one?
                 el_tracker.sendMessage('time_out')
                 break
 
@@ -695,10 +584,9 @@ def run_trial(trial_pars, trial_index, bandit_type):
                     return pylink.ABORT_EXPT
 
     # part 4: reward presentation
-#    clear_screen(win)
-    reward_presentation_without_fixation_onset_time = core.getTime()
-    el_tracker.sendMessage('reward_presentation_without_fixation')
-    while core.getTime() - reward_presentation_without_fixation_onset_time <= 3:
+    reward_pre_without_fixation_onset_time = core.getTime()
+    el_tracker.sendMessage('reward_pre_without_fixation')
+    while core.getTime() - reward_pre_without_fixation_onset_time <= reward_pre_without_fixation_length:
         left_rect.draw()
         right_rect.draw()
         left_type.draw()
@@ -711,14 +599,14 @@ def run_trial(trial_pars, trial_index, bandit_type):
     # send a message to clear the Data Viewer screen as well
     el_tracker.sendMessage('!V CLEAR 128 128 128')
 
-    # stop recording; add 100 msec to catch final events before stopping
-    pylink.pumpDelay(100)
-    el_tracker.stopRecording()
+    # # stop recording; add 100 msec to catch final events before stopping
+    # pylink.pumpDelay(100)
+    # el_tracker.stopRecording()
 
     # record trial variables to the EDF data file, for details, see Data
     # Viewer User Manual, "Protocol for EyeLink Data to Viewer Integration"
+    # Haoxue: they need to follow the format !V TRIAL_VAR your_var your_value 
     el_tracker.sendMessage('!V TRIAL_VAR condition %s' % cond)
-    # el_tracker.sendMessage('!V TRIAL_VAR image %s' % pic)
     el_tracker.sendMessage('!V TRIAL_VAR RT %d' % RT)
     el_tracker.sendMessage('!V TRIAL_VAR Choice %d' % choice)
 
@@ -727,44 +615,48 @@ def run_trial(trial_pars, trial_index, bandit_type):
     el_tracker.sendMessage('TRIAL_RESULT %d' % pylink.TRIAL_OK)
 
 
-# Step 5: Set up the camera and calibrate the tracker
 
-# Show the task instructions
-task_msg = 'In the task, you may press the SPACEBAR to end a trial\n' + \
-    '\nPress Ctrl-C to if you need to quit the task early\n'
-if dummy_mode:
-    task_msg = task_msg + '\nNow, press ENTER to start the task'
-else:
-    task_msg = task_msg + '\nNow, press ENTER twice to calibrate tracker' 
+block_list = np.random.randint(low=1, high=5, size=n_blocks)
 
-show_msg(win, task_msg, msgColor, wait_for_keypress=True)
+# lets start the task!
 
-# skip this step if running the script in Dummy Mode
-if not dummy_mode:
-    try:
-        el_tracker.doTrackerSetup()
-    except RuntimeError as err:
-        print('ERROR:', err)
-        el_tracker.exitCalibration()
+# put tracker in idle/offline mode before recording
+el_tracker.setOfflineMode()
 
-# Step 6: Run the experimental trials, index all the trials
+# Start recording
+# arguments: sample_to_file, events_to_file, sample_over_link,
+# event_over_link (1-yes, 0-no)
+try:
+    el_tracker.startRecording(1, 1, 1, 1) # question for Deshawn: should I shut it down between blocks? or actually I do not need?
+    # related q: can i do drift check even with the eye track still collecting?
+except RuntimeError as error:
+    print("ERROR:", error)
+    abort_trial(win)
+    return pylink.TRIAL_ERROR
 
-# construct a list of 4 trials
-# test_list = trials[:]*2
+# Allocate some time for the tracker to cache some samples
+pylink.pumpDelay(100)
 
-# randomize the trial list
-# random.shuffle(test_list)
+for j in range(len(block_list)):
+    # generate a pair of machines with differnt mean and different types
+    machine1, machine2 = [[0, 0, 0, 0], [0, 0, 0, 0]]
+    while machine1[0] == machine2[0]:
+        machine1 = [np.random.normal(0, sd_mean_mu), 0, "Stable", 0]
+        machine2 = [np.random.normal(0, sd_mean_mu), sd_observe, "Variable", 0]
+        
+    machine1_array = gen_params_array(machine1, n_trials)
+    machine2_array = gen_params_array(machine2, n_trials)
 
-curr_cond = 1
-curr_type = exp_config['cond'][curr_cond]
-for trial in range(n_trials):
-    run_trial([machine1_array, machine2_array],trial,curr_type)
-    
+    run_block([machine1_array, machine2_array], j+1, block_list[j])
 
-# trial_index = 1
-# for trial_pars in test_list:
-#     run_trial(trial_pars, trial_index)
-#     trial_index += 1
+end_msg = 'You have finished the virtual vegas task. Well done!\nNow lest calculate bonus.\nPress SPACE to proceed.'
+show_msg(win, end_msg, wait_for_keypress=True, key_list=['space'])
+
+# stop recording; add 100 msec to catch final events before stopping
+pylink.pumpDelay(100)
+el_tracker.stopRecording()
+
+# TODO: calculate bonus
 
 # Step 7: disconnect, download the EDF file, then terminate the task
-terminate_task()
+terminate_task(win)
