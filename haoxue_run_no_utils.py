@@ -540,7 +540,7 @@ def run_trial(trial_index, trial_pars, bandit_type):
             error = el_tracker.isRecording()
             if error is not pylink.TRIAL_OK:
                 el_tracker.sendMessage('tracker_disconnected')
-                abort_trial()
+                abort_trial(win)
                 return error
 
             # check keyboard events
@@ -574,7 +574,7 @@ def run_trial(trial_index, trial_pars, bandit_type):
                     # clear the screen
                     clear_screen(win)
                     # abort trial
-                    abort_trial()
+                    abort_trial(win)
                     return pylink.SKIP_TRIAL
 
                 # Terminate the task if Ctrl-c
@@ -632,7 +632,7 @@ try:
 except RuntimeError as error:
     print("ERROR:", error)
     abort_trial(win)
-    return pylink.TRIAL_ERROR
+#    return pylink.TRIAL_ERROR
 
 # Allocate some time for the tracker to cache some samples
 pylink.pumpDelay(100)
