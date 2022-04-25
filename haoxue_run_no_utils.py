@@ -389,6 +389,54 @@ if not dummy_mode:
 
 block_end_msg = 'This marks the end of this block.\nTake a rest if you need.\nWhen you are ready, press space to proceed.'
 
+def terminate_task(win):
+    """ Terminate the task gracefully and retrieve the EDF data file
+
+    file_to_retrieve: The EDF on the Host that we would like to download
+    win: the current window used by the experimental script
+    """
+
+    el_tracker = pylink.getEYELINK()
+
+    if el_tracker.isConnected():
+        # Terminate the current trial first if the task terminated prematurely
+        error = el_tracker.isRecording()
+        if error == pylink.TRIAL_OK:
+            abort_trial(win)
+
+        # Put tracker in Offline mode
+        el_tracker.setOfflineMode()
+
+        # Clear the Host PC screen and wait for 500 ms
+        el_tracker.sendCommand('clear_screen 0')
+        pylink.msecDelay(500)
+
+        # Close the edf data file on the Host
+        el_tracker.closeDataFile()
+
+        # Show a file transfer message on the screen
+        # Haoxue: we want to show this at the very end of the task!
+        msg = 'EDF data is transferring from EyeLink Host PC...'
+#        show_msg(win, msg, msgColor, wait_for_keypress=False)
+        show_msg(win, msg, [1,1,1], wait_for_keypress=False)
+        # Download the EDF data file from the Host PC to a local data folder
+        # parameters: source_file_on_the_host, destination_file_on_local_drive
+        local_edf = os.path.join(session_folder, session_identifier + '.EDF')
+        try:
+            el_tracker.receiveDataFile(edf_file, local_edf)
+        except RuntimeError as error:
+            print('ERROR:', error)
+
+        # Close the link to the tracker.
+        el_tracker.close()
+
+    # close the PsychoPy window
+    win.close()
+
+    # quit PsychoPy
+    core.quit()
+    sys.exit()
+    
 # Step 6: Run the experimental trials, index all the trials
 # Haoxue: here we define run_trial function
 def run_block(block_pars, block_index, curr_cond):
@@ -398,11 +446,11 @@ def run_block(block_pars, block_index, curr_cond):
     
     bandit_type = exp_config['cond'][curr_cond-1]
     
-    machine1_mean_array, machine1_reward_array = block_pars[0]
-    machine2_mean_array, machine2_reward_array = block_pars[1]
+    machine1_reward_array = block_pars[0]
+    machine2_reward_array = block_pars[1]
     
-    print('machine1_mean_array:', machine1_mean_array)
     print('machine1_reward_array:', machine1_reward_array)
+    print('machine2_reward_array:', machine2_reward_array)
     
     # get a reference to the currently active EyeLink connection
     # Haoxue: I actually do not understand the part below - why do i need to get another eyelink? why do I need to put the thing into offline mode? is that i am constantly open-close eyelink in this process?
@@ -448,22 +496,21 @@ def run_block(block_pars, block_index, curr_cond):
         except:
             pass
 
-    # # put tracker in idle/offline mode before recording
-    # el_tracker.setOfflineMode()
+    # put tracker in idle/offline mode before recording
+    el_tracker.setOfflineMode()
 
-    # # Start recording
-    # # arguments: sample_to_file, events_to_file, sample_over_link,
-    # # event_over_link (1-yes, 0-no)
-    # try:
-    #     el_tracker.startRecording(1, 1, 1, 1) # question for Deshawn: should I shut it down between blocks? or actually I do not need?
-    #     # related q: can i do drift check even with the eye track still collecting?
-    # except RuntimeError as error:
-    #     print("ERROR:", error)
-    #     abort_trial(win)
-    #     return pylink.TRIAL_ERROR
-
-    # # Allocate some time for the tracker to cache some samples
-    # pylink.pumpDelay(100)
+    # Start recording
+    # arguments: sample_to_file, events_to_file, sample_over_link,
+    # event_over_link (1-yes, 0-no)
+    try:
+        el_tracker.startRecording(1, 1, 1, 1) # question for Deshawn: should I shut it down between blocks? or actually I do not need?
+        # related q: can i do drift check even with the eye track still collecting?
+    except RuntimeError as error:
+        print("ERROR:", error)
+        abort_trial(win)
+        return pylink.TRIAL_ERROR
+    # Allocate some time for the tracker to cache some samples
+    pylink.pumpDelay(100)
 
     # start of the block screen
     block_start_msg = 'Block '+str(block_index)+' of '+str(n_blocks)+\
@@ -524,6 +571,7 @@ def run_trial(trial_index, trial_pars, bandit_type):
         left_type.draw()
         right_type.draw()
         win.flip()
+        print('stimulus_pre_without_fixation_begins!')
 
         # collect choice in part 3
         RT = -1  # keep track of the response time
@@ -546,6 +594,7 @@ def run_trial(trial_index, trial_pars, bandit_type):
             # check keyboard events
             for keycode, modifier in event.getKeys(modifiers=True):
                 # Haoxue: try to make it into choosing left or right here - maybe j and k? 
+                print('current keycode, modifier:', keycode, modifier)
                 if keycode == left_key:
                     # send over a message to log the key press
                     el_tracker.sendMessage('key_press left_option_chosen')
@@ -580,7 +629,7 @@ def run_trial(trial_index, trial_pars, bandit_type):
                 # Terminate the task if Ctrl-c
                 if keycode == 'c' and (modifier['ctrl'] is True):
                     el_tracker.sendMessage('terminated_by_user')
-                    terminate_task()
+                    terminate_task(win)
                     return pylink.ABORT_EXPT
 
     # part 4: reward presentation
@@ -626,16 +675,7 @@ el_tracker.setOfflineMode()
 # Start recording
 # arguments: sample_to_file, events_to_file, sample_over_link,
 # event_over_link (1-yes, 0-no)
-try:
-    el_tracker.startRecording(1, 1, 1, 1) # question for Deshawn: should I shut it down between blocks? or actually I do not need?
-    # related q: can i do drift check even with the eye track still collecting?
-except RuntimeError as error:
-    print("ERROR:", error)
-    abort_trial(win)
-#    return pylink.TRIAL_ERROR
 
-# Allocate some time for the tracker to cache some samples
-pylink.pumpDelay(100)
 
 for j in range(len(block_list)):
     # generate a pair of machines with differnt mean and different types
@@ -647,7 +687,7 @@ for j in range(len(block_list)):
     machine1_array = gen_params_array(machine1, n_trials)
     machine2_array = gen_params_array(machine2, n_trials)
 
-    run_block([machine1_array, machine2_array], j+1, block_list[j])
+    run_block([machine1_array[1], machine2_array[1]], j+1, block_list[j])
 
 end_msg = 'You have finished the virtual vegas task. Well done!\nNow lest calculate bonus.\nPress SPACE to proceed.'
 show_msg(win, end_msg, wait_for_keypress=True, key_list=['space'])

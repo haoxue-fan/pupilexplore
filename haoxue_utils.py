@@ -58,7 +58,7 @@ def terminate_task(win):
         # Terminate the current trial first if the task terminated prematurely
         error = el_tracker.isRecording()
         if error == pylink.TRIAL_OK:
-            abort_trial()
+            abort_trial(win)
 
         # Put tracker in Offline mode
         el_tracker.setOfflineMode()
@@ -73,8 +73,8 @@ def terminate_task(win):
         # Show a file transfer message on the screen
         # Haoxue: we want to show this at the very end of the task!
         msg = 'EDF data is transferring from EyeLink Host PC...'
-        show_msg(win, msg, msgColor, wait_for_keypress=False)
-
+#        show_msg(win, msg, msgColor, wait_for_keypress=False)
+        show_msg(win, msg, [1,1,1], wait_for_keypress=False)
         # Download the EDF data file from the Host PC to a local data folder
         # parameters: source_file_on_the_host, destination_file_on_local_drive
         local_edf = os.path.join(session_folder, session_identifier + '.EDF')
