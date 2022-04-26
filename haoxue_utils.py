@@ -116,15 +116,16 @@ def abort_trial(win):
 
     return pylink.TRIAL_ERROR
     
-def gen_params(sd_observe, sd_mean_mu, sd_rw, label):
-    machine_iloc = np.random.randint(low=0, high=2, size=1)
+def gen_params(sd_observe, sd_mean_mu, sd_rw, label, machine_iloc = -1):
+    if machine_iloc == -1:
+        machine_iloc = np.random.randint(low=0, high=2, size=1)
     sd_options = [0, sd_observe]
     sd_rw_options = [0, sd_rw]
     curr_mu = np.random.normal(0, sd_mean_mu)
     curr_sd = sd_options[machine_iloc]
     curr_label = label[machine_iloc]
     curr_sd_rw = sd_rw_options[machine_iloc]
-    return curr_mu, curr_sd, curr_label, curr_sd_rw
+    return curr_mu, curr_sd, curr_label , curr_sd_rw
   
 def gen_params_array(machine_params, n_trials):
     mean_array = [0] * n_trials

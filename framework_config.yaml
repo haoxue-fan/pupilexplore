@@ -39,25 +39,31 @@ display_experiment_dialog: True
 use_retina: True
 # Set this variable to True to run the script in "Dummy Mode"
 dummy_mode: True
+# Set this variable to True to run the script in "Debug Mode", which is independent from the dummy_mode
+debug_mode: True
 # Set this variable to True to run the task in full screen mode
 # It is easier to debug the script in non-fullscreen mode
-full_screen: True
+full_screen: False
+codeVers: 1
 cond: [
     ['R', 'S'],
     ['S', 'R'],
     ['R', 'R'],
     ['S', 'S'],
 ]
+labels: ['S', 'R']
 starting_coins: 250
-
+scaling_factor: 0.1
 n_blocks: 30
 n_trials: 10
-n_blocks_dummy: 2
-n_trials_dummy: 3
+n_blocks_debug: 2
+n_trials_debug: 3
 
 sd_observe: 4
 sd_mean_mu: 10
 sd_rw: 0
+
+start_coin: 250
 monitor:
     width: 53.0
     distance: 70.0
@@ -91,10 +97,12 @@ trial:
     stimulus_pre_with_fixation_length: 3.0
     stimulus_pre_without_fixation_length_max: 1.5
     reward_pre_without_fixation_length: 3.0
-    fixation_length_min_dummy: 1.0
-    fixation_length_max_dummy: 1.5
-    stimulus_pre_with_fixation_length_dummy: 1.5
-    stimulus_pre_without_fixation_length_max_dummy: 1.0
-    reward_pre_without_fixation_length_dummy: 1.5
+    fixation_length_min_debug: 1.0
+    fixation_length_max_debug: 1.5
+    stimulus_pre_with_fixation_length_debug: 1.5
+    stimulus_pre_without_fixation_length_max_debug: 1.0
+    reward_pre_without_fixation_length_debug: 1.5
+baseline_length: 300
+baseline_length_debug: 10    
     
 

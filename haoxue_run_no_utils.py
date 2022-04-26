@@ -15,11 +15,12 @@ import random
 import time
 import sys
 from EyeLinkCoreGraphicsPsychoPy import EyeLinkCoreGraphicsPsychoPy
-from psychopy import visual, core, event, monitors, gui
+from psychopy import visual, core, event, monitors, gui, __version__
 from PIL import Image  # for preparing the Host backdrop image
 from string import ascii_letters, digits
 from haoxue_utils import * 
 import numpy as np
+import pandas as pd
 
 # Switch to the script folder
 script_path = os.path.dirname(sys.argv[0])
@@ -42,11 +43,14 @@ with open('framework_config.yaml', 'r') as file:
 # haoxue: consider put these things in a yaml file.
 use_retina = exp_config['use_retina']
 dummy_mode = exp_config['dummy_mode']
+debug_mode = exp_config['debug_mode']
 full_screen = exp_config['full_screen']
 msgColor = exp_config['msg']['msgColor']
 typeColor = exp_config['type']['typeColor']
 typeSize = exp_config['type']['typeSize']
 typeBold = exp_config['type']['typeBold']
+
+
 # Set up EDF data file name and local data folder
 #
 # The EDF data filename should not exceed 8 alphanumeric characters
@@ -97,13 +101,15 @@ if not os.path.exists(results_folder):
 # We download EDF data file from the EyeLink Host PC to the local hard
 # drive at the end of each testing session, here we rename the EDF to
 # include session start date/time
-time_str = time.strftime("_%Y_%m_%d_%H_%M", time.localtime())
+time_str = time.strftime("_%Y_%m_%d", time.localtime())
 session_identifier = edf_fname + time_str
 
 # create a folder for the current testing session in the "results" folder
 session_folder = os.path.join(results_folder, session_identifier)
 if not os.path.exists(session_folder):
     os.makedirs(session_folder)
+
+data_identifier = os.path.join(session_folder, 'taskData.csv')
 
 # Step 1: Connect to the EyeLink Host PC
 #
@@ -206,8 +212,6 @@ if 'Darwin' in platform.system():
         scn_width = int(scn_width/2.0)
         scn_height = int(scn_height/2.0)
 
-#print('scn_width ', scn_width)
-#print('scn_height ', scn_height)
 # Pass the display pixel coordinates (left, top, right, bottom) to the tracker
 # see the EyeLink Installation Guide, "Customizing Screen Settings"
 el_coords = "screen_pixel_coords = 0 0 %d %d" % (scn_width - 1, scn_height - 1)
@@ -298,35 +302,33 @@ machine2 = [0, 0, 0, 0]
 sd_mean_mu = exp_config['sd_mean_mu']
 sd_observe = exp_config['sd_observe']
 sd_rw = exp_config['sd_rw']
+labels = exp_config['labels']
+scaling_factor = exp_config['scaling_factor']
+start_coin = exp_config['start_coin']
+
 if dummy_mode:
-    n_blocks = exp_config['n_blocks_dummy']
-    n_trials = exp_config['n_trials_dummy']
+    n_blocks = exp_config['n_blocks_debug']
+    n_trials = exp_config['n_trials_debug']
 else:
     n_blocks = exp_config['n_blocks']
     n_trials = exp_config['n_trials']
 
 if dummy_mode:
-    fixation_length_min = exp_config['trial']['fixation_length_min_dummy']
-    fixation_length_max = exp_config['trial']['fixation_length_max_dummy']
-    stimulus_pre_with_fixation_length = exp_config['trial']['stimulus_pre_with_fixation_length_dummy']
-    stimulus_pre_without_fixation_length_max = exp_config['trial']['stimulus_pre_without_fixation_length_max_dummy']
-    reward_pre_without_fixation_length = exp_config['trial']['reward_pre_without_fixation_length_dummy']
+    fixation_length_min = exp_config['trial']['fixation_length_min_debug']
+    fixation_length_max = exp_config['trial']['fixation_length_max_debug']
+    stimulus_pre_with_fixation_length = exp_config['trial']['stimulus_pre_with_fixation_length_debug']
+    stimulus_pre_without_fixation_length_max = exp_config['trial']['stimulus_pre_without_fixation_length_max_debug']
+    reward_pre_without_fixation_length = exp_config['trial']['reward_pre_without_fixation_length_debug']
+    baseline_length = exp_config['baseline_length_debug']
 else:
     fixation_length_min = exp_config['trial']['fixation_length_min']
     fixation_length_max = exp_config['trial']['fixation_length_max']
     stimulus_pre_with_fixation_length = exp_config['trial']['stimulus_pre_with_fixation_length']
     stimulus_pre_without_fixation_length_max = exp_config['trial']['stimulus_pre_without_fixation_length_max']
     reward_pre_without_fixation_length = exp_config['trial']['reward_pre_without_fixation_length']
+    baseline_length = exp_config['baseline_length']
 
 
-#machine1 = [0, 0, 0, 0]
-#machine2 = [0, 0, 0, 0]
-#while (machine1[0] == machine2[0]) {
-#  machine1 = gen_params()
-#  machine2 = gen_params()
-#}
-#machine1_array = gen_params_array(machine1, n_trials)
-#machine2_array = gen_params_array(machine2, n_trials)
 
 # generate all these stimulus outside of the loop (and then update its attributes within run_all)
 fixation = visual.ShapeStim(win,
@@ -368,32 +370,36 @@ right_type = visual.TextStim(win,
 left_key = exp_config['keys']['left_key']
 right_key = exp_config['keys']['right_key']
 
+block_end_msg = 'This marks the end of this block.\nTake a rest if you need.\nWhen you are ready, press space to proceed.'
+baseline_end_msg = 'This marks the end of the baseline measurement period.\nTake a rest if you need.\nWhen you are ready, press space to proceed.'
 
 # Step 5: Set up the camera and calibrate the tracker
-# Show the task instructions
-task_msg = ''
-if dummy_mode:
-    task_msg = task_msg + '\nNow, press ENTER to start the task'
-else:
-    task_msg = task_msg + '\nNow, press ENTER twice to calibrate tracker' 
 
-show_msg(win, task_msg, msgColor, wait_for_keypress=True, key_list=['Enter','space'])
+def run_calibrate():
 
-# skip this step if running the script in Dummy Mode
-if not dummy_mode:
-    try:
-        el_tracker.doTrackerSetup()
-    except RuntimeError as err:
-        print('ERROR:', err)
-        el_tracker.exitCalibration()
+    task_msg = ''
+    if dummy_mode:
+        task_msg = task_msg + '\nNow, press ENTER to start the task'
+    else:
+        task_msg = task_msg + '\nNow, press ENTER twice to calibrate tracker' 
 
-block_end_msg = 'This marks the end of this block.\nTake a rest if you need.\nWhen you are ready, press space to proceed.'
+    show_msg(win, task_msg, msgColor, wait_for_keypress=True, key_list=['return','space'])
+
+    # skip this step if running the script in Dummy Mode
+    if not dummy_mode:
+        try:
+            el_tracker.doTrackerSetup()
+        except RuntimeError as err:
+            print('ERROR:', err)
+            el_tracker.exitCalibration()
 
 def terminate_task(win):
     """ Terminate the task gracefully and retrieve the EDF data file
 
     file_to_retrieve: The EDF on the Host that we would like to download
     win: the current window used by the experimental script
+
+    Haoxue: this function is put in the main text since it ask for MsgColor and some other variables (e.g. sessionInfo) which maybe too tedious to send to utils.py
     """
 
     el_tracker = pylink.getEYELINK()
@@ -417,8 +423,7 @@ def terminate_task(win):
         # Show a file transfer message on the screen
         # Haoxue: we want to show this at the very end of the task!
         msg = 'EDF data is transferring from EyeLink Host PC...'
-#        show_msg(win, msg, msgColor, wait_for_keypress=False)
-        show_msg(win, msg, [1,1,1], wait_for_keypress=False)
+        show_msg(win, msg, msgColor, wait_for_keypress=False)
         # Download the EDF data file from the Host PC to a local data folder
         # parameters: source_file_on_the_host, destination_file_on_local_drive
         local_edf = os.path.join(session_folder, session_identifier + '.EDF')
@@ -433,25 +438,64 @@ def terminate_task(win):
     # close the PsychoPy window
     win.close()
 
-    # quit PsychoPy
-    core.quit()
-    sys.exit()
+    saveData(data)
+
+def run_baseline():
+    """ Helper function specifying the pupil baseline measure
+
+    """
+
+    # put tracker in idle/offline mode before recording
+    el_tracker.setOfflineMode()
+
+    # Start recording
+    # arguments: sample_to_file, events_to_file, sample_over_link,
+    # event_over_link (1-yes, 0-no)
+    try:
+        el_tracker.startRecording(1, 1, 1, 1) # question for Deshawn: should I shut it down between blocks? or actually I do not need?
+        # related q: can i do drift check even with the eye track still collecting?
+    except RuntimeError as error:
+        print("ERROR:", error)
+        abort_trial(win)
+        return pylink.TRIAL_ERROR
+    # Allocate some time for the tracker to cache some samples
+    pylink.pumpDelay(100)
+
+    # introduce them to the fixation page
+    msg = 'Now we are going to measure your baseline pupil size.\nThis will take 5 minutes.'+\
+    '\nPlease fixate your eyes on the cross in the center of the screen.\nPlease try to keep your eyes open and reduce blinking.'+\
+    '\nWe will let you know when this is done and then you can take a rest.'
+
+    show_msg(win, msg, msgColor, wait_for_keypress= True)
+
+    baseline_onset_time = core.getTime()
+    el_tracker.sendMessage('baseline_onset') # Haoxue: add trial number?
+    while core.getTime() - baseline_onset_time <= baseline_length:
+        fixation.draw()
+        win.flip()
     
+    # end of the baseline screen
+    clear_screen(win) 
+    show_msg(win, block_end_msg, msgColor, wait_for_keypress=True, key_list=['space'])
+    el_tracker.sendMessage('baseline_end')
+
+
+
 # Step 6: Run the experimental trials, index all the trials
-# Haoxue: here we define run_trial function
-def run_block(block_pars, block_index, curr_cond):
+def run_block(block_pars, block_index, curr_cond, practice_flag=0):
     """ Helper function specifying the events that will occur in a single trial
 
     """
     
     bandit_type = exp_config['cond'][curr_cond-1]
     
-    machine1_reward_array = block_pars[0]
-    machine2_reward_array = block_pars[1]
+    machine1_mean_array, machine1_reward_array = block_pars[0]
+    machine2_mean_array, machine2_reward_array = block_pars[1]
     
-    print('machine1_reward_array:', machine1_reward_array)
-    print('machine2_reward_array:', machine2_reward_array)
-    
+    if debug_mode:
+        print('machine1_reward_array:', machine1_reward_array)
+        print('machine2_reward_array:', machine2_reward_array)
+        
     # get a reference to the currently active EyeLink connection
     # Haoxue: I actually do not understand the part below - why do i need to get another eyelink? why do I need to put the thing into offline mode? is that i am constantly open-close eyelink in this process?
     el_tracker = pylink.getEYELINK()
@@ -513,27 +557,118 @@ def run_block(block_pars, block_index, curr_cond):
     pylink.pumpDelay(100)
 
     # start of the block screen
-    block_start_msg = 'Block '+str(block_index)+' of '+str(n_blocks)+\
-        '\nSlot Machines in this block: '+bandit_type[0]+' and '+bandit_type[1]+\
-            '\nPress Space to begin if you are ready.'
+    if practice_flag:
+        block_start_msg = 'Practice Block'+\
+            '\nSlot Machines in this block: '+bandit_type[0]+' and '+bandit_type[1]+\
+                '\nPress Space to begin if you are ready.'
+    else:
+        block_start_msg = 'Block '+str(block_index)+' of '+str(n_blocks)+\
+            '\nSlot Machines in this block: '+bandit_type[0]+' and '+bandit_type[1]+\
+                '\nPress Space to begin if you are ready.'
     clear_screen(win) 
     show_msg(win, block_start_msg, msgColor, wait_for_keypress=True, key_list=['space'])
     el_tracker.sendMessage('block_end')
 
     for trial in range(n_trials): # Haouxe: need to figure out a way to save data
-        run_trial(trial, [machine1_reward_array, machine2_reward_array], bandit_type)
+        run_trial(trial, block_pars, bandit_type, curr_cond, block_index)
 
     # end of the block screen
     clear_screen(win) 
     show_msg(win, block_end_msg, msgColor, wait_for_keypress=True, key_list=['space'])
     el_tracker.sendMessage('block_end')
 
+    # save choice Data at the block end
+    saveData(data)
+
+def run_practice():
     
-def run_trial(trial_index, trial_pars, bandit_type):
-    machine1_reward_array, machine2_reward_array = trial_pars
+    curr_label_logic = [x == labels[1] for x in exp_config['cond'][0]]
+    
+    # generate a pair of machines with differnt mean and different types
+    machine1, machine2 = [[0, 0, 0, 0], [0, 0, 0, 0]]    
+    while machine1[0] == machine2[0]:
+        machine1 = gen_params(sd_observe, sd_mean_mu, sd_rw, labels, curr_label_logic[0])
+        machine2 = gen_params(sd_observe, sd_mean_mu, sd_rw, labels, curr_label_logic[1])
+
+    machine1_array = gen_params_array(machine1, n_trials)
+    machine2_array = gen_params_array(machine2, n_trials)
+
+    run_block([machine1_array, machine2_array], block_index=-1, curr_cond=1, practice_flag=1)
+
+
+def saveData(data):
+    """
+    Collects all the data - experiment, behavioral task, stimuli specs and subject info, converts it to a pandas data frame and saves as a csv.
+    """
+    # Haoxue: the directory thing should be taken care of above. Howver, for the robustness of the code, we may want to check it again in future versions.
+    # if not os.path.isdir('data'): os.mkdir('data')
+    taskData = pd.DataFrame(data)
+    taskData.to_csv(data_identifier, index = False, encoding = 'utf-8')
+    
+
+def initializeData():
+    taskData = {
+        'subjectID': [],
+        'psychopyVers': [],
+        'codeVers': [],
+        'sd_observe': [],
+        'sd_mean_mu': [],
+        'sd_rw': [],
+        'block': [],
+        'trial': [],
+        'scaling_factor': [],
+        'choiceRT': [],
+        'IFI': [],
+        'correct': [],
+        'correctArm': [],
+        'choice': [],
+        'keycode': [],
+        'cond': [],
+        'mu1': [],
+        'mu2': [],
+        'reward1': [],
+        'reward2': [],
+        'reward': [],
+        'start_coin': [],
+        'total_coin': [],
+    }   
+    return taskData
+
+def run_trial(trial_index, block_pars, bandit_type, curr_cond, block_index):
+    machine1_mean_array, machine1_reward_array = block_pars[0]
+    machine2_mean_array, machine2_reward_array = block_pars[1]
     left_type.text = bandit_type[0]
     right_type.text = bandit_type[1]
 
+    fixation_length = np.random.uniform(low=fixation_length_min,high=fixation_length_max)
+    
+    # append data before the trial starts
+    data['subjectID'].append(edf_fname)
+    data['psychopyVers'].append(__version__)
+    data['codeVers'].append(exp_config['codeVers'])
+    data['sd_observe'].append(sd_observe)
+    data['sd_mean_mu'].append(sd_mean_mu)
+    data['sd_rw'].append(sd_rw)
+    data['block'].append(block_index) # can it access to block index here?
+    data['trial'].append(trial_index+1)
+    data['scaling_factor'].append(scaling_factor)
+
+    data['IFI'].append(fixation_length)
+    data['cond'].append(curr_cond)
+    
+    data['mu1'].append(machine1_mean_array[trial_index])
+    data['mu2'].append(machine2_mean_array[trial_index])
+    data['reward1'].append(machine1_reward_array[trial_index])
+    data['reward2'].append(machine2_reward_array[trial_index])
+    data['start_coin'].append(start_coin)
+
+    if machine1_mean_array[trial_index] >= machine2_mean_array[trial_index]:
+        data['correctArm'].append('machine1')    
+    else:
+        data['correctArm'].append('machine2')    
+
+
+                    
     # part 0 : talk to eye tracker
     el_tracker.sendMessage('TRIALID %d' % trial_index)
     # record_status_message : show some info on the Host PC
@@ -541,7 +676,6 @@ def run_trial(trial_index, trial_pars, bandit_type):
     el_tracker.sendCommand("record_status_message '%s'" % status_msg)
 
     # part 1: fixation (fixation)
-    fixation_length = np.random.uniform(low=fixation_length_min,high=fixation_length_max)
     fixation_onset_time = core.getTime()
     el_tracker.sendMessage('fixation_onset') # Haoxue: add trial number?
     while core.getTime() - fixation_onset_time <= fixation_length:
@@ -594,7 +728,6 @@ def run_trial(trial_index, trial_pars, bandit_type):
             # check keyboard events
             for keycode, modifier in event.getKeys(modifiers=True):
                 # Haoxue: try to make it into choosing left or right here - maybe j and k? 
-                print('current keycode, modifier:', keycode, modifier)
                 if keycode == left_key:
                     # send over a message to log the key press
                     el_tracker.sendMessage('key_press left_option_chosen')
@@ -602,8 +735,19 @@ def run_trial(trial_index, trial_pars, bandit_type):
                     RT = int((core.getTime() - stimulus_pre_without_fixation_onset_time )*1000)
                     # record which option is chosen - should I take into account cond here?
                     get_keypress = True
-                    choice = 0
+                    choice = 'machine1'
                     left_type.text = machine1_reward_array[trial_index]
+                    data['choiceRT'].append(RT)
+                    data['choice'].append(choice)
+                    data['reward'].append(machine1_reward_array[trial_index])
+                    data['keycode'].append(keycode)
+                    data['correct'].append(choice == data['correctArm'][-1])
+                    if (block_index == 1 | block_index == -1) & trial_index == 0:
+                        total_coin = start_coin + machine1_reward_array[trial_index]
+                        data['total_coin'].append(total_coin)
+                    else:
+                        total_coin = data['total_coin'][-1] + machine1_reward_array[trial_index]
+                        data['total_coin'].append(total_coin)
                     break
 
                 if keycode == right_key:
@@ -613,8 +757,19 @@ def run_trial(trial_index, trial_pars, bandit_type):
                     RT = int((core.getTime() - stimulus_pre_without_fixation_onset_time )*1000)
                     # record which option is chosen
                     get_keypress = True
-                    choice = 1
+                    choice = 'machine2'
                     right_type.text = machine2_reward_array[trial_index]
+                    data['choiceRT'].append(RT)
+                    data['choice'].append(choice)
+                    data['reward'].append(machine2_reward_array[trial_index])
+                    data['keycode'].append(keycode)
+                    data['correct'].append(choice == data['correctArm'][-1])
+                    if (block_index == 1 | block_index == -1) & trial_index == 0:
+                        total_coin = start_coin + machine2_reward_array[trial_index]
+                        data['total_coin'].append(total_coin)
+                    else:
+                        total_coin = data['total_coin'][-1] + machine2_reward_array[trial_index]
+                        data['total_coin'].append(total_coin)
                     break
 
                 # Abort a trial if "ESCAPE" is pressed
@@ -649,9 +804,7 @@ def run_trial(trial_index, trial_pars, bandit_type):
     el_tracker.sendMessage('!V CLEAR 128 128 128')
 
     # # stop recording; add 100 msec to catch final events before stopping
-    # pylink.pumpDelay(100)
-    # el_tracker.stopRecording()
-
+    
     # record trial variables to the EDF data file, for details, see Data
     # Viewer User Manual, "Protocol for EyeLink Data to Viewer Integration"
     # Haoxue: they need to follow the format !V TRIAL_VAR your_var your_value 
@@ -662,35 +815,49 @@ def run_trial(trial_index, trial_pars, bandit_type):
     # send a 'TRIAL_RESULT' message to mark the end of trial, see Data
     # Viewer User Manual, "Protocol for EyeLink Data to Viewer Integration"
     el_tracker.sendMessage('TRIAL_RESULT %d' % pylink.TRIAL_OK)
+    
+
 
 
 
 block_list = np.random.randint(low=1, high=5, size=n_blocks)
 
-# lets start the task!
+# lets start the task!!!
+data = initializeData()
+seed = np.random.randint(low=1000000, high=9999999, size=1)
+np.random.seed(seed)
 
 # put tracker in idle/offline mode before recording
 el_tracker.setOfflineMode()
 
-# Start recording
-# arguments: sample_to_file, events_to_file, sample_over_link,
-# event_over_link (1-yes, 0-no)
+# calibrate
+run_calibrate()
 
+# Baseline Measurement
+if not dummy_mode:
+    run_baseline()
 
+# run practice
+run_practice()
+
+# run real task
 for j in range(len(block_list)):
+    # generate index for the current label - 0: not first label; 1: first label
+    curr_label_logic = [x == labels[1] for x in exp_config['cond'][block_list[j]-1]]
+    
     # generate a pair of machines with differnt mean and different types
-    machine1, machine2 = [[0, 0, 0, 0], [0, 0, 0, 0]]
+    machine1, machine2 = [[0, 0, 0, 0], [0, 0, 0, 0]]    
     while machine1[0] == machine2[0]:
-        machine1 = [np.random.normal(0, sd_mean_mu), 0, "Stable", 0]
-        machine2 = [np.random.normal(0, sd_mean_mu), sd_observe, "Variable", 0]
-        
+        machine1 = gen_params(sd_observe, sd_mean_mu, sd_rw, labels, curr_label_logic[0])
+        machine2 = gen_params(sd_observe, sd_mean_mu, sd_rw, labels, curr_label_logic[1])
+
     machine1_array = gen_params_array(machine1, n_trials)
     machine2_array = gen_params_array(machine2, n_trials)
 
-    run_block([machine1_array[1], machine2_array[1]], j+1, block_list[j])
+    run_block([machine1_array, machine2_array], j+1, block_list[j])
 
 end_msg = 'You have finished the virtual vegas task. Well done!\nNow lest calculate bonus.\nPress SPACE to proceed.'
-show_msg(win, end_msg, wait_for_keypress=True, key_list=['space'])
+show_msg(win, end_msg, msgColor, wait_for_keypress=True, key_list=['space'])
 
 # stop recording; add 100 msec to catch final events before stopping
 pylink.pumpDelay(100)
