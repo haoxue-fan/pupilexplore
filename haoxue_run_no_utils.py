@@ -306,14 +306,14 @@ labels = exp_config['labels']
 scaling_factor = exp_config['scaling_factor']
 start_coin = exp_config['start_coin']
 
-if dummy_mode:
+if debug_mode:
     n_blocks = exp_config['n_blocks_debug']
     n_trials = exp_config['n_trials_debug']
 else:
     n_blocks = exp_config['n_blocks']
     n_trials = exp_config['n_trials']
 
-if dummy_mode:
+if debug_mode:
     fixation_length_min = exp_config['trial']['fixation_length_min_debug']
     fixation_length_max = exp_config['trial']['fixation_length_max_debug']
     stimulus_pre_with_fixation_length = exp_config['trial']['stimulus_pre_with_fixation_length_debug']
@@ -567,7 +567,7 @@ def run_block(block_pars, block_index, curr_cond, practice_flag=0):
                 '\nPress Space to begin if you are ready.'
     clear_screen(win) 
     show_msg(win, block_start_msg, msgColor, wait_for_keypress=True, key_list=['space'])
-    el_tracker.sendMessage('block_end')
+    el_tracker.sendMessage('block_start')
 
     for trial in range(n_trials): # Haouxe: need to figure out a way to save data
         run_trial(trial, block_pars, bandit_type, curr_cond, block_index)
@@ -602,7 +602,8 @@ def saveData(data):
     """
     # Haoxue: the directory thing should be taken care of above. Howver, for the robustness of the code, we may want to check it again in future versions.
     # if not os.path.isdir('data'): os.mkdir('data')
-    taskData = pd.DataFrame(data)
+    print(data)
+    taskData = pd.DataFrame(dict([ (k, pd.Series(v)) for k,v in data.items() ]))
     taskData.to_csv(data_identifier, index = False, encoding = 'utf-8')
     
 
@@ -684,7 +685,7 @@ def run_trial(trial_index, block_pars, bandit_type, curr_cond, block_index):
     
     # part 2: stimulus presentation (fixation + bandits_type)
     stimulus_pre_with_fixation_onset_time = core.getTime()
-    el_tracker.sendMessage('stimulus_pre_with_fixation') 
+    el_tracker.sendMessage('stimulus_pre_with_fixation_onset') 
     
     while core.getTime() - stimulus_pre_with_fixation_onset_time  <= stimulus_pre_with_fixation_length: # Haoxue: is core.getTime() an accurate one?
         fixation.draw()
@@ -696,7 +697,8 @@ def run_trial(trial_index, block_pars, bandit_type, curr_cond, block_index):
     
     # part 3: stimulus presentation + choice (bandits_type)
     stimulus_pre_without_fixation_onset_time = core.getTime()
-    el_tracker.sendMessage('stimulus_pre_without_fixation')
+    el_tracker.sendMessage('stimulus_pre_without_fixation_onset')
+    
     # remove any existing key press
     event.clearEvents() 
     while core.getTime() - stimulus_pre_without_fixation_onset_time <= stimulus_pre_without_fixation_length_max:
@@ -705,7 +707,6 @@ def run_trial(trial_index, block_pars, bandit_type, curr_cond, block_index):
         left_type.draw()
         right_type.draw()
         win.flip()
-        print('stimulus_pre_without_fixation_begins!')
 
         # collect choice in part 3
         RT = -1  # keep track of the response time
@@ -789,7 +790,7 @@ def run_trial(trial_index, block_pars, bandit_type, curr_cond, block_index):
 
     # part 4: reward presentation
     reward_pre_without_fixation_onset_time = core.getTime()
-    el_tracker.sendMessage('reward_pre_without_fixation')
+    el_tracker.sendMessage('reward_pre_without_fixation_onset')
     while core.getTime() - reward_pre_without_fixation_onset_time <= reward_pre_without_fixation_length:
         left_rect.draw()
         right_rect.draw()
@@ -803,14 +804,12 @@ def run_trial(trial_index, block_pars, bandit_type, curr_cond, block_index):
     # send a message to clear the Data Viewer screen as well
     el_tracker.sendMessage('!V CLEAR 128 128 128')
 
-    # # stop recording; add 100 msec to catch final events before stopping
-    
     # record trial variables to the EDF data file, for details, see Data
     # Viewer User Manual, "Protocol for EyeLink Data to Viewer Integration"
     # Haoxue: they need to follow the format !V TRIAL_VAR your_var your_value 
-    el_tracker.sendMessage('!V TRIAL_VAR condition %s' % cond)
+    el_tracker.sendMessage('!V TRIAL_VAR condition %s' % curr_cond)
     el_tracker.sendMessage('!V TRIAL_VAR RT %d' % RT)
-    el_tracker.sendMessage('!V TRIAL_VAR Choice %d' % choice)
+    el_tracker.sendMessage('!V TRIAL_VAR Choice %d' % choice) # there seem to be some problem in saving this part of the data
 
     # send a 'TRIAL_RESULT' message to mark the end of trial, see Data
     # Viewer User Manual, "Protocol for EyeLink Data to Viewer Integration"
