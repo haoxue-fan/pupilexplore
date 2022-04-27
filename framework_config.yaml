@@ -36,9 +36,9 @@ display_experiment_dialog: True
 # primary display device on macOS. If have an external monitor, set this
 # variable True if you choose to "Optimize for Built-in Retina Display"
 # in the Displays preference settings.
-use_retina: False
+use_retina: True
 # Set this variable to True to run the script in "Dummy Mode"
-dummy_mode: False
+dummy_mode: True
 # Set this variable to True to run the script in "Debug Mode", which is independent from the dummy_mode
 debug_mode: True
 # Set this variable to True to run the task in full screen mode

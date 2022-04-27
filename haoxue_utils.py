@@ -45,54 +45,6 @@ def show_msg(win, text, msgcolor, wait_for_keypress=True, key_list=None):
         clear_screen(win)
 
 
-def terminate_task(win):
-    """ Terminate the task gracefully and retrieve the EDF data file
-
-    file_to_retrieve: The EDF on the Host that we would like to download
-    win: the current window used by the experimental script
-    """
-
-    el_tracker = pylink.getEYELINK()
-
-    if el_tracker.isConnected():
-        # Terminate the current trial first if the task terminated prematurely
-        error = el_tracker.isRecording()
-        if error == pylink.TRIAL_OK:
-            abort_trial(win)
-
-        # Put tracker in Offline mode
-        el_tracker.setOfflineMode()
-
-        # Clear the Host PC screen and wait for 500 ms
-        el_tracker.sendCommand('clear_screen 0')
-        pylink.msecDelay(500)
-
-        # Close the edf data file on the Host
-        el_tracker.closeDataFile()
-
-        # Show a file transfer message on the screen
-        # Haoxue: we want to show this at the very end of the task!
-        msg = 'EDF data is transferring from EyeLink Host PC...'
-#        show_msg(win, msg, msgColor, wait_for_keypress=False)
-        show_msg(win, msg, [1,1,1], wait_for_keypress=False)
-        # Download the EDF data file from the Host PC to a local data folder
-        # parameters: source_file_on_the_host, destination_file_on_local_drive
-        local_edf = os.path.join(session_folder, session_identifier + '.EDF')
-        try:
-            el_tracker.receiveDataFile(edf_file, local_edf)
-        except RuntimeError as error:
-            print('ERROR:', error)
-
-        # Close the link to the tracker.
-        el_tracker.close()
-
-    # close the PsychoPy window
-    win.close()
-
-    # quit PsychoPy
-    core.quit()
-    sys.exit()
-
 
 def abort_trial(win):
     """Ends recording """
