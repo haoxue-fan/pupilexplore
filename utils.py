@@ -3,9 +3,6 @@
 
 # also need to think about how they look when they are put on mac instead of windows
 
-from __future__ import division
-from __future__ import print_function
-
 import pylink
 import os
 import platform
@@ -29,12 +26,18 @@ def clear_screen(win, background_color = [-1,-1,-1]):
     win.flip()
 
 
-def show_msg(win, text, msgcolor, wait_for_keypress=True, key_list=None):
+def show_msg(win, text, msgcolor, wait_for_keypress=True, key_list=None, textHeight=None):
     """ Show task instructions on screen"""
     scn_width, scn_height = win.size
-    msg = visual.TextStim(win, text,
+    if textHeight is not None:
+        msg = visual.TextStim(win, text,
                           color=msgcolor,
-                          wrapWidth=scn_width/2)
+                          wrapWidth=scn_width/2,
+                          height=textHeight)
+    else:
+        msg = visual.TextStim(win, text,
+                              color=msgcolor,
+                              wrapWidth=scn_width/2)
     clear_screen(win)
     msg.draw()
     win.flip()
@@ -89,6 +92,34 @@ def gen_params_array(machine_params, n_trials):
         reward_array[j] = int(np.round(np.random.normal(mean_array[j], machine_params[1])))
     return mean_array, reward_array
 
+    
 
+def initializeData():
+    taskData = {
+        'subjectID': [],
+        'psychopyVers': [],
+        'codeVers': [],
+        'sd_observe': [],
+        'sd_mean_mu': [],
+        'sd_rw': [],
+        'block': [],
+        'trial': [],
+        'scaling_factor': [],
+        'choiceRT': [],
+        'IFI': [],
+        'correct': [],
+        'correctArm': [],
+        'choice': [],
+        'keycode': [],
+        'cond': [],
+        'mu1': [],
+        'mu2': [],
+        'reward1': [],
+        'reward2': [],
+        'reward': [],
+        'start_coin': [],
+        'total_coin': [],
+    }   
+    return taskData
 
 

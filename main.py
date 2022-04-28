@@ -3,8 +3,6 @@
 
 # also need to think about how they look when they are put on mac instead of windows
 
-from __future__ import division
-from __future__ import print_function
 from asyncio import wait_for
 from multiprocessing import dummy
 
@@ -18,9 +16,11 @@ from EyeLinkCoreGraphicsPsychoPy import EyeLinkCoreGraphicsPsychoPy
 from psychopy import visual, core, event, monitors, gui, __version__
 from PIL import Image  # for preparing the Host backdrop image
 from string import ascii_letters, digits
-from haoxue_utils import * 
+from utils import * 
 import numpy as np
 import pandas as pd
+import yaml
+
 
 # Switch to the script folder
 script_path = os.path.dirname(sys.argv[0])
@@ -36,9 +36,8 @@ logging.console.setLevel(logging.CRITICAL)
 # variable True if you choose to "Optimize for Built-in Retina Display"
 # in the Displays preference settings.
 
-import yaml
 
-with open('framework_config.yaml', 'r') as file:
+with open('main_config.yaml', 'r') as file:
     exp_config = yaml.safe_load(file)
 # haoxue: consider put these things in a yaml file.
 use_retina = exp_config['use_retina']
@@ -320,6 +319,7 @@ if debug_mode:
     stimulus_pre_without_fixation_length_max = exp_config['trial']['stimulus_pre_without_fixation_length_max_debug']
     reward_pre_without_fixation_length = exp_config['trial']['reward_pre_without_fixation_length_debug']
     baseline_length = exp_config['baseline_length_debug']
+    extra_fixation_length = exp_config['extra_fixation_length']
 else:
     fixation_length_min = exp_config['trial']['fixation_length_min']
     fixation_length_max = exp_config['trial']['fixation_length_max']
@@ -327,6 +327,7 @@ else:
     stimulus_pre_without_fixation_length_max = exp_config['trial']['stimulus_pre_without_fixation_length_max']
     reward_pre_without_fixation_length = exp_config['trial']['reward_pre_without_fixation_length']
     baseline_length = exp_config['baseline_length']
+    extra_fixation_length_debug = exp_config['extra_fixation_length_debug']
 
 
 
@@ -404,7 +405,7 @@ def terminate_task(win):
 
     el_tracker = pylink.getEYELINK()
 
-    if el_tracker.isConnected():
+    if el_tracker.isConnected() == 1:
         # Terminate the current trial first if the task terminated prematurely
         error = el_tracker.isRecording()
         if error == pylink.TRIAL_OK:
@@ -435,10 +436,14 @@ def terminate_task(win):
         # Close the link to the tracker.
         el_tracker.close()
 
+    saveData(data)
     # close the PsychoPy window
     win.close()
+    core.quit()
+    sys.exit()
 
-    saveData(data)
+
+
 
 def run_baseline():
     """ Helper function specifying the pupil baseline measure
@@ -559,14 +564,20 @@ def run_block(block_pars, block_index, curr_cond, practice_flag=0):
     # start of the block screen
     if practice_flag:
         block_start_msg = 'Practice Block'+\
-            '\nSlot Machines in this block: '+bandit_type[0]+' and '+bandit_type[1]+\
+            '\nSlot Machines in this block:'+\
+            '\n'+\
+            '\n'+bandit_type[0]+' and '+bandit_type[1]+\
+            '\n'+\
                 '\nPress Space to begin if you are ready.'
     else:
         block_start_msg = 'Block '+str(block_index)+' of '+str(n_blocks)+\
-            '\nSlot Machines in this block: '+bandit_type[0]+' and '+bandit_type[1]+\
+            '\nSlot Machines in this block:'+\
+            '\n'+\
+            '\n'+bandit_type[0]+' and '+bandit_type[1]+\
+            '\n'+\
                 '\nPress Space to begin if you are ready.'
     clear_screen(win) 
-    show_msg(win, block_start_msg, msgColor, wait_for_keypress=True, key_list=['space'])
+    show_msg(win, block_start_msg, msgColor, wait_for_keypress=True, key_list=['space'], textHeight=50)
     el_tracker.sendMessage('block_start')
 
     for trial in range(n_trials): # Haouxe: need to figure out a way to save data
@@ -602,38 +613,9 @@ def saveData(data):
     """
     # Haoxue: the directory thing should be taken care of above. Howver, for the robustness of the code, we may want to check it again in future versions.
     # if not os.path.isdir('data'): os.mkdir('data')
-    print(data)
-    taskData = pd.DataFrame(dict([ (k, pd.Series(v)) for k,v in data.items() ]))
+    taskData = pd.DataFrame(data)
     taskData.to_csv(data_identifier, index = False, encoding = 'utf-8')
-    
 
-def initializeData():
-    taskData = {
-        'subjectID': [],
-        'psychopyVers': [],
-        'codeVers': [],
-        'sd_observe': [],
-        'sd_mean_mu': [],
-        'sd_rw': [],
-        'block': [],
-        'trial': [],
-        'scaling_factor': [],
-        'choiceRT': [],
-        'IFI': [],
-        'correct': [],
-        'correctArm': [],
-        'choice': [],
-        'keycode': [],
-        'cond': [],
-        'mu1': [],
-        'mu2': [],
-        'reward1': [],
-        'reward2': [],
-        'reward': [],
-        'start_coin': [],
-        'total_coin': [],
-    }   
-    return taskData
 
 def run_trial(trial_index, block_pars, bandit_type, curr_cond, block_index):
     machine1_mean_array, machine1_reward_array = block_pars[0]
@@ -663,6 +645,17 @@ def run_trial(trial_index, block_pars, bandit_type, curr_cond, block_index):
     data['reward2'].append(machine2_reward_array[trial_index])
     data['start_coin'].append(start_coin)
 
+    data['choiceRT'].append([])
+    data['choice'].append([])
+    data['reward'].append([])
+    data['keycode'].append([])
+    data['correct'].append([])
+    
+    if (block_index == 1 | block_index == -1) & trial_index == 0:
+        data['total_coin'].append(data['start_coin'][0])
+    else:
+        data['total_coin'].append(data['start_coin'][-1])
+    
     if machine1_mean_array[trial_index] >= machine2_mean_array[trial_index]:
         data['correctArm'].append('machine1')    
     else:
@@ -677,8 +670,15 @@ def run_trial(trial_index, block_pars, bandit_type, curr_cond, block_index):
     el_tracker.sendCommand("record_status_message '%s'" % status_msg)
 
     # part 1: fixation (fixation)
+    if green_fixation:
+            fixation.lineColor = (1, 1, 1)
+            
     fixation_onset_time = core.getTime()
-    el_tracker.sendMessage('fixation_onset') # Haoxue: add trial number?
+    el_tracker.sendMessage('fixation_onset') 
+    
+    if trial_index == 0:
+        fixation_length += extra_fixation_length
+        
     while core.getTime() - fixation_onset_time <= fixation_length:
         fixation.draw()
         win.flip()
@@ -706,6 +706,9 @@ def run_trial(trial_index, block_pars, bandit_type, curr_cond, block_index):
         right_rect.draw()
         left_type.draw()
         right_type.draw()
+        if green_fixation:
+            fixation.lineColor = (0, 1, 0)
+            fixation.draw()
         win.flip()
 
         # collect choice in part 3
@@ -738,17 +741,12 @@ def run_trial(trial_index, block_pars, bandit_type, curr_cond, block_index):
                     get_keypress = True
                     choice = 'machine1'
                     left_type.text = machine1_reward_array[trial_index]
-                    data['choiceRT'].append(RT)
-                    data['choice'].append(choice)
-                    data['reward'].append(machine1_reward_array[trial_index])
-                    data['keycode'].append(keycode)
-                    data['correct'].append(choice == data['correctArm'][-1])
-                    if (block_index == 1 | block_index == -1) & trial_index == 0:
-                        total_coin = start_coin + machine1_reward_array[trial_index]
-                        data['total_coin'].append(total_coin)
-                    else:
-                        total_coin = data['total_coin'][-1] + machine1_reward_array[trial_index]
-                        data['total_coin'].append(total_coin)
+                    data['choiceRT'][-1] = RT
+                    data['choice'][-1] = choice
+                    data['reward'][-1] = machine1_reward_array[trial_index]
+                    data['keycode'][-1] = keycode
+                    data['correct'][-1] = choice == data['correctArm'][-1]
+                    data['total_coin'][-1] += machine1_reward_array[trial_index]
                     break
 
                 if keycode == right_key:
@@ -760,17 +758,12 @@ def run_trial(trial_index, block_pars, bandit_type, curr_cond, block_index):
                     get_keypress = True
                     choice = 'machine2'
                     right_type.text = machine2_reward_array[trial_index]
-                    data['choiceRT'].append(RT)
-                    data['choice'].append(choice)
-                    data['reward'].append(machine2_reward_array[trial_index])
-                    data['keycode'].append(keycode)
-                    data['correct'].append(choice == data['correctArm'][-1])
-                    if (block_index == 1 | block_index == -1) & trial_index == 0:
-                        total_coin = start_coin + machine2_reward_array[trial_index]
-                        data['total_coin'].append(total_coin)
-                    else:
-                        total_coin = data['total_coin'][-1] + machine2_reward_array[trial_index]
-                        data['total_coin'].append(total_coin)
+                    data['choiceRT'][-1] = RT
+                    data['choice'][-1] = choice
+                    data['reward'][-1] = machine2_reward_array[trial_index]
+                    data['keycode'][-1] = keycode
+                    data['correct'][-1] = choice == data['correctArm'][-1]
+                    data['total_coin'][-1] += machine2_reward_array[trial_index]
                     break
 
                 # Abort a trial if "ESCAPE" is pressed
@@ -796,6 +789,10 @@ def run_trial(trial_index, block_pars, bandit_type, curr_cond, block_index):
         right_rect.draw()
         left_type.draw()
         right_type.draw()
+        if green_fixation:
+            if data['keycode'][-1] == []:
+                fixation.lineColor = (1,0,0)
+            fixation.draw()
         win.flip()
     
     # clear the screen
@@ -836,9 +833,12 @@ run_calibrate()
 if not dummy_mode:
     run_baseline()
 
+green_fixation = 1
 # run practice
 run_practice()
 
+fixation.lineColor = (1,1,1)
+green_fixation = 0
 # run real task
 for j in range(len(block_list)):
     # generate index for the current label - 0: not first label; 1: first label
@@ -855,8 +855,26 @@ for j in range(len(block_list)):
 
     run_block([machine1_array, machine2_array], j+1, block_list[j])
 
-end_msg = 'You have finished the virtual vegas task. Well done!\nNow lest calculate bonus.\nPress SPACE to proceed.'
+end_msg = 'You have finished the virtual vegas task. Well done!'+\
+    '\nPress SPACE to sed how much you have earned as a bonus in the task!.'
 show_msg(win, end_msg, msgColor, wait_for_keypress=True, key_list=['space'])
+
+def calculate_bonus(data):
+    bonus = np.floor(data['total_coin'][-1] * scaling_factor)
+    if bonus < 1: 
+        return 1
+    if bonus > 5:
+        return 5
+    return bonus
+    
+bonus = calculate_bonus(data)
+
+bonus_msg = 'Your accumulated reward equals to a reward of $'+str(bonus)+'!'+\
+    '\nThe bonus will be paid together with your base rate at the end of the experiment.'+\
+    '\nPress let the experimenter know you have finished.'
+    
+show_msg(win, bonus_msg, msgColor, wait_for_keypress=True, key_list=['space'])
+
 
 # stop recording; add 100 msec to catch final events before stopping
 pylink.pumpDelay(100)

@@ -53,7 +53,7 @@ cond: [
 ]
 labels: ['S', 'R']
 starting_coins: 250
-scaling_factor: 0.1
+scaling_factor: 0.01
 n_blocks: 30
 n_trials: 10
 n_blocks_debug: 2
@@ -64,14 +64,16 @@ sd_mean_mu: 10
 sd_rw: 0
 
 start_coin: 250
+
 monitor:
     width: 53.0
     distance: 70.0
+    
 calibration:
 # Set background and foreground colors for the calibration target
 # in PsychoPy, (-1, -1, -1)=black, (1, 1, 1)=white, (0, 0, 0)=mid-gray
     foreground_color: [1,1,1]
-    background_color: [-1, -1, -1] # originally they used win.color, not sure whether i could do this in .yaml file
+    background_color: [0, 0, 0] # originally they used win.color, not sure whether i could do this in .yaml file
 msg:
     msgColor: [1,1,1]
 type:
@@ -81,12 +83,12 @@ type:
 fixation:
     fixColor: [1,1,1]
     fixLineWidth: 5
-    fixSize: 10
+    fixSize: 25
 rect:
     rectWidth: 400
     rectHeight: 400
-    rectLineWidth: 3
-    rectDistCenter: 50
+    rectLineWidth: 7
+    rectDistCenter: 100
     rectColor: [1,1,1]  
 keys:
     left_key: 'j'
@@ -97,11 +99,13 @@ trial:
     stimulus_pre_with_fixation_length: 3.0
     stimulus_pre_without_fixation_length_max: 1.5
     reward_pre_without_fixation_length: 3.0
+    extra_fixation_length: 2.0
     fixation_length_min_debug: 1.0
     fixation_length_max_debug: 1.5
     stimulus_pre_with_fixation_length_debug: 1.5
     stimulus_pre_without_fixation_length_max_debug: 1.0
     reward_pre_without_fixation_length_debug: 1.5
+    extra_fixation_length_debug: 0.5
 baseline_length: 300
 baseline_length_debug: 10    
     
