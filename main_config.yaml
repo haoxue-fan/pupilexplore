@@ -91,8 +91,8 @@ rect:
     rectDistCenter: 100
     rectColor: [1,1,1]  
 keys:
-    left_key: 'j'
-    right_key: 'k'
+    left_key: 'q'
+    right_key: 'p'
 trial:
     fixation_length_min: 1.0
     fixation_length_max: 2.0

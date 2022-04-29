@@ -1,7 +1,20 @@
-# Haoxue: try to build a general framework for our task without all the object thing
-# the current goal is only use object for the trial part.
+# ----------------------------------------------------------------------------
+# Description
+# ----------------------------------------------------------------------------
 
-# also need to think about how they look when they are put on mac instead of windows
+# main.py:
+# The main function to run the two-armed bandit task used in Gershman (2019)
+
+# Some of the functions were adapted from the jspsych version of the task which
+# can be found in cognition.run phelpslab account
+# Written by Haoxue Fan
+# Last updated on Apr 2022
+
+# This file is run within psychopy 2022.1.3 and pylink downloaded from SR
+# research developer kit on a Windows Computer. The integration with eyelink
+# hasn't been tested on a mac.
+
+# This file should be used with utils.py and main_config.yaml in the same folder
 
 from asyncio import wait_for
 from multiprocessing import dummy
@@ -36,10 +49,10 @@ logging.console.setLevel(logging.CRITICAL)
 # variable True if you choose to "Optimize for Built-in Retina Display"
 # in the Displays preference settings.
 
-
+# get parameters from yaml
 with open('main_config.yaml', 'r') as file:
     exp_config = yaml.safe_load(file)
-# haoxue: consider put these things in a yaml file.
+
 use_retina = exp_config['use_retina']
 dummy_mode = exp_config['dummy_mode']
 debug_mode = exp_config['debug_mode']
@@ -48,7 +61,51 @@ msgColor = exp_config['msg']['msgColor']
 typeColor = exp_config['type']['typeColor']
 typeSize = exp_config['type']['typeSize']
 typeBold = exp_config['type']['typeBold']
+foreground_color = exp_config['calibration']['foreground_color']
+background_color = exp_config['calibration']['background_color']
+cond = exp_config['cond'][0]
+fixSize = exp_config['fixation']['fixSize']
+fixLineWidth = exp_config['fixation']['fixLineWidth']
+fixColor = exp_config['fixation']['fixColor']
+rectWidth = exp_config['rect']['rectWidth']
+rectHeight = exp_config['rect']['rectHeight']
+rectLineWidth = exp_config['rect']['rectLineWidth']
+rectDistCenter = exp_config['rect']['rectDistCenter']
+rectColor = exp_config['rect']['rectColor']
 
+sd_mean_mu = exp_config['sd_mean_mu']
+sd_observe = exp_config['sd_observe']
+sd_rw = exp_config['sd_rw']
+labels = exp_config['labels']
+scaling_factor = exp_config['scaling_factor']
+start_coin = exp_config['start_coin']
+
+if debug_mode:
+    n_blocks = exp_config['n_blocks_debug']
+    n_trials = exp_config['n_trials_debug']
+else:
+    n_blocks = exp_config['n_blocks']
+    n_trials = exp_config['n_trials']
+
+if debug_mode:
+    fixation_length_min = exp_config['trial']['fixation_length_min_debug']
+    fixation_length_max = exp_config['trial']['fixation_length_max_debug']
+    stimulus_pre_with_fixation_length = exp_config['trial']['stimulus_pre_with_fixation_length_debug']
+    stimulus_pre_without_fixation_length_max = exp_config['trial']['stimulus_pre_without_fixation_length_max_debug']
+    reward_pre_without_fixation_length = exp_config['trial']['reward_pre_without_fixation_length_debug']
+    baseline_length = exp_config['baseline_length_debug']
+    extra_fixation_length = exp_config['trial']['extra_fixation_length']
+else:
+    fixation_length_min = exp_config['trial']['fixation_length_min']
+    fixation_length_max = exp_config['trial']['fixation_length_max']
+    stimulus_pre_with_fixation_length = exp_config['trial']['stimulus_pre_with_fixation_length']
+    stimulus_pre_without_fixation_length_max = exp_config['trial']['stimulus_pre_without_fixation_length_max']
+    reward_pre_without_fixation_length = exp_config['trial']['reward_pre_without_fixation_length']
+    baseline_length = exp_config['baseline_length']
+    extra_fixation_length_debug = exp_config['trial']['extra_fixation_length_debug']
+
+left_key = exp_config['keys']['left_key']
+right_key = exp_config['keys']['right_key']
 
 # Set up EDF data file name and local data folder
 #
@@ -107,7 +164,7 @@ session_identifier = edf_fname + time_str
 session_folder = os.path.join(results_folder, session_identifier)
 if not os.path.exists(session_folder):
     os.makedirs(session_folder)
-
+# name the behavioral data file
 data_identifier = os.path.join(session_folder, 'taskData.csv')
 
 # Step 1: Connect to the EyeLink Host PC
@@ -185,15 +242,10 @@ if eyelink_ver > 2:
     el_tracker.sendCommand("sample_rate 1000")
 # Choose a calibration type, H3, HV3, HV5, HV13 (HV = horizontal/vertical),
 el_tracker.sendCommand("calibration_type = HV9")
-# Set a gamepad button to accept calibration/drift check target
-# You need a supported gamepad/button box that is connected to the Host PC
-# Haoxue: I do not think we have this?
-# el_tracker.sendCommand("button_function 5 'accept_target_fixation'")
 
 # Step 4: set up a graphics environment for calibration
 #
 # Open a window, be sure to specify monitor parameters
-# Haoxue: may want to make here customized - width and distance, are they for the monitor? is distance the distance between chiinrest and the screen?
 monitor_width = exp_config['monitor']['width']
 monitor_dist = exp_config['monitor']['distance']
 mon = monitors.Monitor('myMonitor', width=monitor_width, distance=monitor_dist)
@@ -226,12 +278,6 @@ el_tracker.sendMessage(dv_coords)
 # Configure a graphics environment (genv) for tracker calibration
 genv = EyeLinkCoreGraphicsPsychoPy(el_tracker, win)
 print(genv)  # print out the version number of the CoreGraphics library
-
-
-# foreground_color = (-1, -1, -1)
-# background_color = win.color
-foreground_color = exp_config['calibration']['foreground_color']
-background_color = exp_config['calibration']['background_color']
 
 genv.setCalibrationColors(foreground_color, background_color)
 
@@ -272,66 +318,10 @@ if use_retina:
 pylink.openGraphicsEx(genv)
 
 
-# define a few helper functions for trial handling
+# define the plot objects outside of the loop (attributes can be changed within
+# the loop)
 
-
-
-# define fixation
-# Haoxue: not sure why they do not have color here?
-
-
-# Haoxue: this is the bread and butter we want to taylor for our own exp
-# general idea being that we want a loop, 
-cond = exp_config['cond'][0]
-
-fixSize = exp_config['fixation']['fixSize']
-fixLineWidth = exp_config['fixation']['fixLineWidth']
-fixColor = exp_config['fixation']['fixColor']
-
-rectWidth = exp_config['rect']['rectWidth']
-rectHeight = exp_config['rect']['rectHeight']
-rectLineWidth = exp_config['rect']['rectLineWidth']
-rectDistCenter = exp_config['rect']['rectDistCenter']
-rectColor = exp_config['rect']['rectColor']
-    
-# generate machine for practice
-machine1 = [0, 0, 0, 0]
-machine2 = [0, 0, 0, 0]
-
-sd_mean_mu = exp_config['sd_mean_mu']
-sd_observe = exp_config['sd_observe']
-sd_rw = exp_config['sd_rw']
-labels = exp_config['labels']
-scaling_factor = exp_config['scaling_factor']
-start_coin = exp_config['start_coin']
-
-if debug_mode:
-    n_blocks = exp_config['n_blocks_debug']
-    n_trials = exp_config['n_trials_debug']
-else:
-    n_blocks = exp_config['n_blocks']
-    n_trials = exp_config['n_trials']
-
-if debug_mode:
-    fixation_length_min = exp_config['trial']['fixation_length_min_debug']
-    fixation_length_max = exp_config['trial']['fixation_length_max_debug']
-    stimulus_pre_with_fixation_length = exp_config['trial']['stimulus_pre_with_fixation_length_debug']
-    stimulus_pre_without_fixation_length_max = exp_config['trial']['stimulus_pre_without_fixation_length_max_debug']
-    reward_pre_without_fixation_length = exp_config['trial']['reward_pre_without_fixation_length_debug']
-    baseline_length = exp_config['baseline_length_debug']
-    extra_fixation_length = exp_config['extra_fixation_length']
-else:
-    fixation_length_min = exp_config['trial']['fixation_length_min']
-    fixation_length_max = exp_config['trial']['fixation_length_max']
-    stimulus_pre_with_fixation_length = exp_config['trial']['stimulus_pre_with_fixation_length']
-    stimulus_pre_without_fixation_length_max = exp_config['trial']['stimulus_pre_without_fixation_length_max']
-    reward_pre_without_fixation_length = exp_config['trial']['reward_pre_without_fixation_length']
-    baseline_length = exp_config['baseline_length']
-    extra_fixation_length_debug = exp_config['extra_fixation_length_debug']
-
-
-
-# generate all these stimulus outside of the loop (and then update its attributes within run_all)
+# fixation in the middle of the screen
 fixation = visual.ShapeStim(win,
             vertices   = ((0, -fixSize),(0, fixSize),(0,0),(-fixSize,0),(fixSize, 0)),
             lineWidth  = fixLineWidth,
@@ -340,19 +330,25 @@ fixation = visual.ShapeStim(win,
             ori = 0
        )
 
+# left slot machine
 left_rect = visual.ShapeStim(win,
-        vertices  = ((-rectDistCenter-rectWidth, -rectHeight/2), (-rectDistCenter-rectWidth, rectHeight/2), (-rectDistCenter, rectHeight/2), (-rectDistCenter, -rectHeight/2)),
-        lineWidth = rectLineWidth,
-        closeShape = True,
-        lineColor = rectColor,
-        ori = 0)
-right_rect = visual.ShapeStim(win,
-        vertices  = ((rectDistCenter+rectWidth, -rectHeight/2), (rectDistCenter+rectWidth, rectHeight/2), (rectDistCenter, rectHeight/2), (rectDistCenter, -rectHeight/2)),
+        vertices  = ((-rectDistCenter-rectWidth, -rectHeight/2), (-rectDistCenter-rectWidth, rectHeight/2),\
+             (-rectDistCenter, rectHeight/2), (-rectDistCenter, -rectHeight/2)),
         lineWidth = rectLineWidth,
         closeShape = True,
         lineColor = rectColor,
         ori = 0)
 
+# right slot machine
+right_rect = visual.ShapeStim(win,
+        vertices  = ((rectDistCenter+rectWidth, -rectHeight/2), (rectDistCenter+rectWidth, rectHeight/2),\
+             (rectDistCenter, rectHeight/2), (rectDistCenter, -rectHeight/2)),
+        lineWidth = rectLineWidth,
+        closeShape = True,
+        lineColor = rectColor,
+        ori = 0)
+
+# label/reward for the left slot machine
 left_type = visual.TextStim(win,
     text = 'D',
     pos = (-rectDistCenter-rectWidth/2, 0),
@@ -360,6 +356,8 @@ left_type = visual.TextStim(win,
     height = typeSize,
     bold = typeBold,
 )
+
+# label/reward for the right slot machine
 right_type = visual.TextStim(win,
     text = 'D',
     pos = (rectDistCenter+rectWidth/2, 0),
@@ -368,15 +366,14 @@ right_type = visual.TextStim(win,
     bold = typeBold,
 )
 
-left_key = exp_config['keys']['left_key']
-right_key = exp_config['keys']['right_key']
-
 block_end_msg = 'This marks the end of this block.\nTake a rest if you need.\nWhen you are ready, press space to proceed.'
 baseline_end_msg = 'This marks the end of the baseline measurement period.\nTake a rest if you need.\nWhen you are ready, press space to proceed.'
 
 # Step 5: Set up the camera and calibrate the tracker
 
 def run_calibrate():
+    """ function to call if we want to run calibration during the task
+    """
 
     task_msg = ''
     if dummy_mode:
@@ -400,7 +397,6 @@ def terminate_task(win):
     file_to_retrieve: The EDF on the Host that we would like to download
     win: the current window used by the experimental script
 
-    Haoxue: this function is put in the main text since it ask for MsgColor and some other variables (e.g. sessionInfo) which maybe too tedious to send to utils.py
     """
 
     el_tracker = pylink.getEYELINK()
@@ -422,7 +418,6 @@ def terminate_task(win):
         el_tracker.closeDataFile()
 
         # Show a file transfer message on the screen
-        # Haoxue: we want to show this at the very end of the task!
         msg = 'EDF data is transferring from EyeLink Host PC...'
         show_msg(win, msg, msgColor, wait_for_keypress=False)
         # Download the EDF data file from the Host PC to a local data folder
@@ -440,14 +435,9 @@ def terminate_task(win):
     # close the PsychoPy window
     win.close()
     core.quit()
-    sys.exit()
-
-
-
 
 def run_baseline():
-    """ Helper function specifying the pupil baseline measure
-
+    """ Pupil baseline measure
     """
 
     # put tracker in idle/offline mode before recording
@@ -484,8 +474,6 @@ def run_baseline():
     show_msg(win, block_end_msg, msgColor, wait_for_keypress=True, key_list=['space'])
     el_tracker.sendMessage('baseline_end')
 
-
-
 # Step 6: Run the experimental trials, index all the trials
 def run_block(block_pars, block_index, curr_cond, practice_flag=0):
     """ Helper function specifying the events that will occur in a single trial
@@ -494,15 +482,14 @@ def run_block(block_pars, block_index, curr_cond, practice_flag=0):
     
     bandit_type = exp_config['cond'][curr_cond-1]
     
-    machine1_mean_array, machine1_reward_array = block_pars[0]
-    machine2_mean_array, machine2_reward_array = block_pars[1]
-    
     if debug_mode:
+        # during debug mode, print out the reward array
+        _, machine1_reward_array = block_pars[0]
+        _, machine2_reward_array = block_pars[1]
         print('machine1_reward_array:', machine1_reward_array)
         print('machine2_reward_array:', machine2_reward_array)
         
     # get a reference to the currently active EyeLink connection
-    # Haoxue: I actually do not understand the part below - why do i need to get another eyelink? why do I need to put the thing into offline mode? is that i am constantly open-close eyelink in this process?
     el_tracker = pylink.getEYELINK()
 
     # put the tracker in the offline mode first
@@ -517,10 +504,6 @@ def run_block(block_pars, block_index, curr_cond, practice_flag=0):
     status_msg = 'BLOCK number %d' % block_index
     el_tracker.sendCommand("record_status_message '%s'" % status_msg)
 
-    # Haoxue: potentially thinking about doing drift check once at the beginning of the block
-    #         and the potential problem of changing the recording schedule
-    # Haoxue: maybe this is where people talk about doing calibration before each block? i.e., they can do this automatically?
-    # drift check
     # we recommend drift-check at the beginning of each trial
     # the doDriftCorrect() function requires target position in integers
     # the last two arguments:
@@ -592,7 +575,11 @@ def run_block(block_pars, block_index, curr_cond, practice_flag=0):
     saveData(data)
 
 def run_practice():
-    
+    """ Helper function to run practice block 
+        In the practice block, there is always two arms of different types and
+        different mean
+
+    """
     curr_label_logic = [x == labels[1] for x in exp_config['cond'][0]]
     
     # generate a pair of machines with differnt mean and different types
@@ -604,25 +591,51 @@ def run_practice():
     machine1_array = gen_params_array(machine1, n_trials)
     machine2_array = gen_params_array(machine2, n_trials)
 
+    # run block and pass in the practice_flag as 1 (so the block index will be labeled
+    # as -1)
     run_block([machine1_array, machine2_array], block_index=-1, curr_cond=1, practice_flag=1)
 
+
+def calculate_bonus(data):
+    """ Helper function calculating accumulated bonus multiplied by the scaling factor
+
+    """
+    bonus = np.floor(data['total_coin'][-1] * scaling_factor)
+
+    # Caution: maximum and minimum bonus is now hard coded! May want to include
+    # that in the config file too in the future to increase flexibility
+    if bonus < 1: 
+        return 1
+    if bonus > 5:
+        return 5
+    return bonus
 
 def saveData(data):
     """
     Collects all the data - experiment, behavioral task, stimuli specs and subject info, converts it to a pandas data frame and saves as a csv.
     """
-    # Haoxue: the directory thing should be taken care of above. Howver, for the robustness of the code, we may want to check it again in future versions.
+    # The directory has been taken care of in the main flow of the experiment. 
+    # May want to include this check in future versions to increase robustness
     # if not os.path.isdir('data'): os.mkdir('data')
+    
+    # convert the data type from dictionary to dataframe
     taskData = pd.DataFrame(data)
     taskData.to_csv(data_identifier, index = False, encoding = 'utf-8')
 
 
 def run_trial(trial_index, block_pars, bandit_type, curr_cond, block_index):
+    """ 
+    Function to run each trial
+    """
+
+    # grab parameters from the function input 
     machine1_mean_array, machine1_reward_array = block_pars[0]
     machine2_mean_array, machine2_reward_array = block_pars[1]
+    # make sure the type of each option is up to date
     left_type.text = bandit_type[0]
     right_type.text = bandit_type[1]
 
+    # generate IFI
     fixation_length = np.random.uniform(low=fixation_length_min,high=fixation_length_max)
     
     # append data before the trial starts
@@ -645,24 +658,27 @@ def run_trial(trial_index, block_pars, bandit_type, curr_cond, block_index):
     data['reward2'].append(machine2_reward_array[trial_index])
     data['start_coin'].append(start_coin)
 
+    # append [] to data fields that will be filled during the task
     data['choiceRT'].append([])
     data['choice'].append([])
     data['reward'].append([])
     data['keycode'].append([])
     data['correct'].append([])
     
+    # for the first trial in the first block (of practice and main experiment), 
+    # total_coin = start_coin. 
+    # Otherwise, initialize total_coin as the total_coin of the last trial
+
     if (block_index == 1 | block_index == -1) & trial_index == 0:
         data['total_coin'].append(data['start_coin'][0])
     else:
-        data['total_coin'].append(data['start_coin'][-1])
+        data['total_coin'].append(data['total_coin'][-1])
     
     if machine1_mean_array[trial_index] >= machine2_mean_array[trial_index]:
         data['correctArm'].append('machine1')    
     else:
         data['correctArm'].append('machine2')    
 
-
-                    
     # part 0 : talk to eye tracker
     el_tracker.sendMessage('TRIALID %d' % trial_index)
     # record_status_message : show some info on the Host PC
@@ -670,6 +686,7 @@ def run_trial(trial_index, block_pars, bandit_type, curr_cond, block_index):
     el_tracker.sendCommand("record_status_message '%s'" % status_msg)
 
     # part 1: fixation (fixation)
+    # green_fixation should be 
     if green_fixation:
             fixation.lineColor = (1, 1, 1)
             
@@ -731,13 +748,12 @@ def run_trial(trial_index, block_pars, bandit_type, curr_cond, block_index):
 
             # check keyboard events
             for keycode, modifier in event.getKeys(modifiers=True):
-                # Haoxue: try to make it into choosing left or right here - maybe j and k? 
                 if keycode == left_key:
                     # send over a message to log the key press
                     el_tracker.sendMessage('key_press left_option_chosen')
                     # get response time in ms, PsychoPy report time in sec
                     RT = int((core.getTime() - stimulus_pre_without_fixation_onset_time )*1000)
-                    # record which option is chosen - should I take into account cond here?
+                    # record which option is chosen 
                     get_keypress = True
                     choice = 'machine1'
                     left_type.text = machine1_reward_array[trial_index]
@@ -833,6 +849,7 @@ run_calibrate()
 if not dummy_mode:
     run_baseline()
 
+# warning: REALLY BAD CODING HABIT HERE!! FIX THE GREEN_FIXATION!!
 green_fixation = 1
 # run practice
 run_practice()
@@ -856,17 +873,9 @@ for j in range(len(block_list)):
     run_block([machine1_array, machine2_array], j+1, block_list[j])
 
 end_msg = 'You have finished the virtual vegas task. Well done!'+\
-    '\nPress SPACE to sed how much you have earned as a bonus in the task!.'
+    '\nPress SPACE to see how much you have earned as a bonus in the task!.'
 show_msg(win, end_msg, msgColor, wait_for_keypress=True, key_list=['space'])
 
-def calculate_bonus(data):
-    bonus = np.floor(data['total_coin'][-1] * scaling_factor)
-    if bonus < 1: 
-        return 1
-    if bonus > 5:
-        return 5
-    return bonus
-    
 bonus = calculate_bonus(data)
 
 bonus_msg = 'Your accumulated reward equals to a reward of $'+str(bonus)+'!'+\
