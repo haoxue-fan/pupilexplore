@@ -2,13 +2,12 @@
 # Description
 # ----------------------------------------------------------------------------
 
-# main.py:
-# The main function to run the two-armed bandit task used in Gershman (2019)
+# quick_check.py
+# A short function to open the eye tracker and quickly check whether it is possible to track the participant's eye. 
+# No data needs to be recorded. 
 
-# Some of the functions were adapted from the jspsych version of the task which
-# can be found in cognition.run phelpslab account
 # Written by Haoxue Fan
-# Last updated on Apr 2022
+# Last updated on May 2022
 
 # This file is run within psychopy 2022.1.3 and pylink downloaded from SR
 # research developer kit on a Windows Computer. The integration with eyelink
@@ -861,48 +860,8 @@ np.random.seed(seed)
 # put tracker in idle/offline mode before recording
 el_tracker.setOfflineMode()
 
-# run practice
-run_practice()
-
-fixation.lineColor = (1,1,1)
-
 # calibrate
 run_calibrate()
-
-# Baseline Measurement
-if not dummy_mode:
-    run_baseline()
-
-# run real task
-for j in range(len(block_list)):
-    # generate index for the current label - 0: not first label; 1: first label
-    curr_label_logic = [x == labels[1] for x in exp_config['cond'][block_list[j]-1]]
-    
-    # generate a pair of machines with differnt mean and different types
-    machine1, machine2 = [[0, 0, 0, 0], [0, 0, 0, 0]]    
-    while machine1[0] == machine2[0]:
-        machine1 = gen_params(sd_observe, sd_mean_mu, sd_rw, labels, curr_label_logic[0])
-        machine2 = gen_params(sd_observe, sd_mean_mu, sd_rw, labels, curr_label_logic[1])
-
-    machine1_array = gen_params_array(machine1, n_trials)
-    machine2_array = gen_params_array(machine2, n_trials)
-
-    run_block([machine1_array, machine2_array], j+1, block_list[j])
-
-end_msg = 'You have finished the virtual vegas task. Well done!'+\
-    '\nPress SPACE to see how much you have earned as a bonus in the task!.'
-show_msg(win, end_msg, msgColor, wait_for_keypress=True, key_list=['space'])
-
-bonus = calculate_bonus(data)
-
-print('BONUS: '+str(bonus))
-        
-bonus_msg = 'Your accumulated reward equals to a reward of $'+str(bonus)+'!'+\
-    '\nThe bonus will be paid together with your base rate at the end of the experiment.'+\
-    '\nPress let the experimenter know you have finished.'
-    
-show_msg(win, bonus_msg, msgColor, wait_for_keypress=True, key_list=['space'])
-
 
 # stop recording; add 100 msec to catch final events before stopping
 pylink.pumpDelay(100)

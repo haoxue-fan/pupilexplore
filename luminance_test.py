@@ -19,7 +19,12 @@
 from asyncio import wait_for
 from multiprocessing import dummy
 
-import pylink, os, platform, random, time, sys, yaml
+import pylink
+import os
+import platform
+import random
+import time
+import sys
 from EyeLinkCoreGraphicsPsychoPy import EyeLinkCoreGraphicsPsychoPy
 from psychopy import visual, core, event, monitors, gui, __version__
 from PIL import Image  # for preparing the Host backdrop image
@@ -27,6 +32,7 @@ from string import ascii_letters, digits
 from utils import * 
 import numpy as np
 import pandas as pd
+import yaml
 
 
 # Switch to the script folder
@@ -66,7 +72,6 @@ rectHeight = exp_config['rect']['rectHeight']
 rectLineWidth = exp_config['rect']['rectLineWidth']
 rectDistCenter = exp_config['rect']['rectDistCenter']
 rectColor = exp_config['rect']['rectColor']
-blockmsgHeight = exp_config['msg']['blockmsgHeight']
 
 sd_mean_mu = exp_config['sd_mean_mu']
 sd_observe = exp_config['sd_observe']
@@ -75,10 +80,33 @@ labels = exp_config['labels']
 scaling_factor = exp_config['scaling_factor']
 start_coin = exp_config['start_coin']
 
+if debug_mode:
+    n_blocks = exp_config['n_blocks_debug']
+    n_trials = exp_config['n_trials_debug']
+else:
+    n_blocks = exp_config['n_blocks']
+    n_trials = exp_config['n_trials']
+
+if debug_mode:
+    fixation_length_min = exp_config['trial']['fixation_length_min_debug']
+    fixation_length_max = exp_config['trial']['fixation_length_max_debug']
+    stimulus_pre_with_fixation_length = exp_config['trial']['stimulus_pre_with_fixation_length_debug']
+    stimulus_pre_without_fixation_length_max = exp_config['trial']['stimulus_pre_without_fixation_length_max_debug']
+    reward_pre_without_fixation_length = exp_config['trial']['reward_pre_without_fixation_length_debug']
+    baseline_length = exp_config['baseline_length_debug']
+    extra_fixation_length = exp_config['trial']['extra_fixation_length_debug']
+else:
+    fixation_length_min = exp_config['trial']['fixation_length_min']
+    fixation_length_max = exp_config['trial']['fixation_length_max']
+    stimulus_pre_with_fixation_length = exp_config['trial']['stimulus_pre_with_fixation_length']
+    stimulus_pre_without_fixation_length_max = exp_config['trial']['stimulus_pre_without_fixation_length_max']
+    reward_pre_without_fixation_length = exp_config['trial']['reward_pre_without_fixation_length']
+    baseline_length = exp_config['baseline_length']
+    extra_fixation_length = exp_config['trial']['extra_fixation_length']
+
 left_key = exp_config['keys']['left_key']
 right_key = exp_config['keys']['right_key']
 
-handness = exp_config['handness']
 # Set up EDF data file name and local data folder
 #
 # The EDF data filename should not exceed 8 alphanumeric characters
@@ -92,6 +120,11 @@ dlg_title = 'Enter EDF File Name'
 dlg_prompt = 'Please enter a subjectID with 8 or fewer characters\n' + \
              '[letters, numbers, and underscore].'
 
+# test - very inaccurate! 
+handness = 'left'
+
+
+
 # loop until we get a valid filename
 while True:
     dlg = gui.Dlg(dlg_title)
@@ -99,9 +132,9 @@ while True:
     dlg.addField('subjectID:', edf_fname)
     dlg.addField('Right/left handed?', handness, choices=['left','right'])
     dlg.addText('\nPlease fill out the blanks below to complete the experiment setup:')
-    dlg.addField('Run on a retina screen?', use_retina, choices=[0,1])
-    dlg.addField('Debug Mode?', debug_mode, choices=[0,1])
-    dlg.addField('Eyelink disconnected?', dummy_mode, choices=[0,1])
+    dlg.addField('Run on Windows/Mac?', choices=['windows','Mac'])
+    dlg.addField('Debug Mode?', choices=['0','1'])
+    dlg.addfield('Eyelink connected?', choices=['0','1'])
     
     # show dialog and wait for OK or Cancel
     ok_data = dlg.show()
@@ -128,33 +161,8 @@ while True:
         handness = ok_data[1]
         use_retina = ok_data[2]
         debug_mode = ok_data[3]
-        dummy_mode = ok_data[4]
+        is_connected = ok_data[4]
         break
-
-# choose between two sets of parameters given debug_mode
-if debug_mode:
-    n_blocks = exp_config['n_blocks_debug']
-    n_trials = exp_config['n_trials_debug']
-else:
-    n_blocks = exp_config['n_blocks']
-    n_trials = exp_config['n_trials']
-
-if debug_mode:
-    fixation_length_min = exp_config['trial']['fixation_length_min_debug']
-    fixation_length_max = exp_config['trial']['fixation_length_max_debug']
-    stimulus_pre_with_fixation_length = exp_config['trial']['stimulus_pre_with_fixation_length_debug']
-    stimulus_pre_without_fixation_length_max = exp_config['trial']['stimulus_pre_without_fixation_length_max_debug']
-    reward_pre_without_fixation_length = exp_config['trial']['reward_pre_without_fixation_length_debug']
-    baseline_length = exp_config['baseline_length_debug']
-    extra_fixation_length = exp_config['trial']['extra_fixation_length_debug']
-else:
-    fixation_length_min = exp_config['trial']['fixation_length_min']
-    fixation_length_max = exp_config['trial']['fixation_length_max']
-    stimulus_pre_with_fixation_length = exp_config['trial']['stimulus_pre_with_fixation_length']
-    stimulus_pre_without_fixation_length_max = exp_config['trial']['stimulus_pre_without_fixation_length_max']
-    reward_pre_without_fixation_length = exp_config['trial']['reward_pre_without_fixation_length']
-    baseline_length = exp_config['baseline_length']
-    extra_fixation_length = exp_config['trial']['extra_fixation_length']
 
 # Set up a folder to store the EDF data files and the associated resources
 # e.g., files defining the interest areas used in each trial
@@ -374,15 +382,8 @@ right_type = visual.TextStim(win,
     bold = typeBold,
 )
 
-block_end_msg = 'This marks the end of this block.'+\
-'\nTake a rest if you need.'+\
-'\nHowever, do not move your head and please keep your chin on the chinrest.'+\
-'\nWhen you are ready, press space to proceed.'
-
-baseline_end_msg = 'This marks the end of the baseline measurement period.'+\
-'\nTake a rest if you need.'+\
-'\nHowever, do not move your head and please keep your chin on the chinrest.'+\
-'\nPlease wait for the experimenter''s instructions.'
+block_end_msg = 'This marks the end of this block.\nTake a rest if you need.\nWhen you are ready, press space to proceed.'
+baseline_end_msg = 'This marks the end of the baseline measurement period.\nTake a rest if you need.\nWhen you are ready, press space to proceed.'
 
 # Step 5: Set up the camera and calibrate the tracker
 
@@ -396,7 +397,7 @@ def run_calibrate():
     else:
         task_msg = task_msg + '\nNow, press ENTER twice to calibrate tracker' 
 
-    show_msg(win, task_msg, msgColor, wait_for_keypress=True, key_list=['return'])
+    show_msg(win, task_msg, msgColor, wait_for_keypress=True, key_list=['return','space'])
 
     # skip this step if running the script in Dummy Mode
     if not dummy_mode:
@@ -486,7 +487,7 @@ def run_baseline():
     
     # end of the baseline screen
     clear_screen(win) 
-    show_msg(win, baseline_end_msg, msgColor, wait_for_keypress=True, key_list=['space'])
+    show_msg(win, block_end_msg, msgColor, wait_for_keypress=True, key_list=['space'])
     el_tracker.sendMessage('baseline_end')
 
 # Step 6: Run the experimental trials, index all the trials
@@ -526,39 +527,38 @@ def run_block(block_pars, block_index, curr_cond, practice_flag=0):
     # allow_setup (1-press ESCAPE to recalibrate, 0-not allowed)
     #
     # Skip drift-check if running the script in Dummy Mode
-    if block_index != -1:
-        while not dummy_mode:
-            # terminate the task if no longer connected to the tracker or
-            # user pressed Ctrl-C to terminate the task
-            if (not el_tracker.isConnected()) or el_tracker.breakPressed():
-                terminate_task(win)
-                return pylink.ABORT_EXPT
+    while not dummy_mode:
+        # terminate the task if no longer connected to the tracker or
+        # user pressed Ctrl-C to terminate the task
+        if (not el_tracker.isConnected()) or el_tracker.breakPressed():
+            terminate_task(win)
+            return pylink.ABORT_EXPT
 
-#            # drift-check and re-do camera setup if ESCAPE is pressed
-#            try:
-#                error = el_tracker.doDriftCorrect(int(scn_width/2.0),
-#                                                  int(scn_height/2.0), 1, 1)
-#                # break following a success drift-check
-#                if error is not pylink.ESC_KEY:
-#                    break
-#            except:
-#                pass
-
-        # put tracker in idle/offline mode before recording
-        el_tracker.setOfflineMode()
-
-        # Start recording
-        # arguments: sample_to_file, events_to_file, sample_over_link,
-        # event_over_link (1-yes, 0-no)
+        # drift-check and re-do camera setup if ESCAPE is pressed
         try:
-            el_tracker.startRecording(1, 1, 1, 1) # question for Deshawn: should I shut it down between blocks? or actually I do not need?
-            # related q: can i do drift check even with the eye track still collecting?
-        except RuntimeError as error:
-            print("ERROR:", error)
-            abort_trial(win)
-            return pylink.TRIAL_ERROR
-        # Allocate some time for the tracker to cache some samples
-        pylink.pumpDelay(100)
+            error = el_tracker.doDriftCorrect(int(scn_width/2.0),
+                                              int(scn_height/2.0), 1, 1)
+            # break following a success drift-check
+            if error is not pylink.ESC_KEY:
+                break
+        except:
+            pass
+
+    # put tracker in idle/offline mode before recording
+    el_tracker.setOfflineMode()
+
+    # Start recording
+    # arguments: sample_to_file, events_to_file, sample_over_link,
+    # event_over_link (1-yes, 0-no)
+    try:
+        el_tracker.startRecording(1, 1, 1, 1) # question for Deshawn: should I shut it down between blocks? or actually I do not need?
+        # related q: can i do drift check even with the eye track still collecting?
+    except RuntimeError as error:
+        print("ERROR:", error)
+        abort_trial(win)
+        return pylink.TRIAL_ERROR
+    # Allocate some time for the tracker to cache some samples
+    pylink.pumpDelay(100)
 
     # start of the block screen
     if practice_flag:
@@ -567,8 +567,6 @@ def run_block(block_pars, block_index, curr_cond, practice_flag=0):
             '\n'+\
             '\n'+bandit_type[0]+' and '+bandit_type[1]+\
             '\n'+\
-            '\nUse left and right arrow key to indicate your decision.'+\
-            '\nTry to avoid moving.'+\
                 '\nPress Space to begin if you are ready.'
     else:
         block_start_msg = 'Block '+str(block_index)+' of '+str(n_blocks)+\
@@ -576,13 +574,12 @@ def run_block(block_pars, block_index, curr_cond, practice_flag=0):
             '\n'+\
             '\n'+bandit_type[0]+' and '+bandit_type[1]+\
             '\n'+\
-            '\nTry to keep your eyes open and avoid blinking.'+\
                 '\nPress Space to begin if you are ready.'
     clear_screen(win) 
-    show_msg(win, block_start_msg, msgColor, wait_for_keypress=True, key_list=['space'], textHeight=blockmsgHeight)
+    show_msg(win, block_start_msg, msgColor, wait_for_keypress=True, key_list=['space'], textHeight=50)
     el_tracker.sendMessage('block_start')
 
-    for trial in range(n_trials): 
+    for trial in range(n_trials): # Haouxe: need to figure out a way to save data
         run_trial(trial, block_pars, bandit_type, curr_cond, block_index)
 
     # end of the block screen
@@ -661,10 +658,6 @@ def run_trial(trial_index, block_pars, bandit_type, curr_cond, block_index):
     data['subjectID'].append(edf_fname)
     data['psychopyVers'].append(__version__)
     data['codeVers'].append(exp_config['codeVers'])
-    data['use_retina'].append(use_retina)
-    data['handness'].append(handness)
-    data['debug_mode'].append(debug_mode)
-    data['dummy_mode'].append(dummy_mode)
     data['sd_observe'].append(sd_observe)
     data['sd_mean_mu'].append(sd_mean_mu)
     data['sd_rw'].append(sd_rw)
@@ -861,17 +854,17 @@ np.random.seed(seed)
 # put tracker in idle/offline mode before recording
 el_tracker.setOfflineMode()
 
-# run practice
-run_practice()
-
-fixation.lineColor = (1,1,1)
-
 # calibrate
 run_calibrate()
 
 # Baseline Measurement
 if not dummy_mode:
     run_baseline()
+
+# run practice
+run_practice()
+
+fixation.lineColor = (1,1,1)
 
 # run real task
 for j in range(len(block_list)):
@@ -895,8 +888,6 @@ show_msg(win, end_msg, msgColor, wait_for_keypress=True, key_list=['space'])
 
 bonus = calculate_bonus(data)
 
-print('BONUS: '+str(bonus))
-        
 bonus_msg = 'Your accumulated reward equals to a reward of $'+str(bonus)+'!'+\
     '\nThe bonus will be paid together with your base rate at the end of the experiment.'+\
     '\nPress let the experimenter know you have finished.'
@@ -907,6 +898,8 @@ show_msg(win, bonus_msg, msgColor, wait_for_keypress=True, key_list=['space'])
 # stop recording; add 100 msec to catch final events before stopping
 pylink.pumpDelay(100)
 el_tracker.stopRecording()
+
+# TODO: calculate bonus
 
 # Step 7: disconnect, download the EDF file, then terminate the task
 terminate_task(win)

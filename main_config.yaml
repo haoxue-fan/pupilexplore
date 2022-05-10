@@ -36,7 +36,7 @@ display_experiment_dialog: True
 # primary display device on macOS. If have an external monitor, set this
 # variable True if you choose to "Optimize for Built-in Retina Display"
 # in the Displays preference settings.
-use_retina: True
+use_retina: False
 # Set this variable to True to run the script in "Dummy Mode"
 dummy_mode: True
 # Set this variable to True to run the script in "Debug Mode", which is independent from the dummy_mode
@@ -65,6 +65,8 @@ sd_rw: 0
 
 start_coin: 250
 
+handness: 'right'
+
 monitor:
     width: 53.0
     distance: 70.0
@@ -76,6 +78,7 @@ calibration:
     background_color: [0, 0, 0] # originally they used win.color, not sure whether i could do this in .yaml file
 msg:
     msgColor: [1,1,1]
+    blockmsgHeight: 35
 type:
     typeColor: [1,1,1]
     typeSize: 50
@@ -91,22 +94,22 @@ rect:
     rectDistCenter: 100
     rectColor: [1,1,1]  
 keys:
-    left_key: 'q'
-    right_key: 'p'
+    left_key: 'left'
+    right_key: 'right'
 trial:
     fixation_length_min: 1.0
     fixation_length_max: 2.0
     stimulus_pre_with_fixation_length: 3.0
     stimulus_pre_without_fixation_length_max: 1.5
-    reward_pre_without_fixation_length: 3.0
+    reward_pre_without_fixation_length: 1.5
     extra_fixation_length: 2.0
-    fixation_length_min_debug: 1.0
-    fixation_length_max_debug: 1.5
-    stimulus_pre_with_fixation_length_debug: 1.5
-    stimulus_pre_without_fixation_length_max_debug: 1.0
-    reward_pre_without_fixation_length_debug: 1.5
+    fixation_length_min_debug: 1.0 # 5 # 1.0
+    fixation_length_max_debug: 1.5 # 5.5 # 1.5
+    stimulus_pre_with_fixation_length_debug: 1.5 # 5 #1.5
+    stimulus_pre_without_fixation_length_max_debug: 1 # 5 #1.0
+    reward_pre_without_fixation_length_debug: 5 #1.5
     extra_fixation_length_debug: 0.5
-baseline_length: 300
+baseline_length: 10  # 300
 baseline_length_debug: 10    
     
 
