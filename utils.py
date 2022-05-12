@@ -97,10 +97,12 @@ def gen_params_array(machine_params, n_trials):
 def initializeData():
     taskData = {
         'subjectID': [],
+        'seed': [],
         'psychopyVers': [],
         'codeVers': [],
         'use_retina': [],
         'handness': [],
+        'glass': [],
         'debug_mode': [],
         'dummy_mode': [],
         'sd_observe': [],

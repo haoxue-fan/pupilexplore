@@ -2,8 +2,9 @@
 # Description
 # ----------------------------------------------------------------------------
 
-# main.py:
-# The main function to run the two-armed bandit task used in Gershman (2019)
+# practice.py: 
+# The practice trial to run the two--armed bandit task used in Gershman (2019)
+# The default for this practice is without eye link connected
 
 # Some of the functions were adapted from the jspsych version of the task which
 # can be found in cognition.run phelpslab account
@@ -19,7 +20,12 @@
 from asyncio import wait_for
 from multiprocessing import dummy
 
-import pylink, os, platform, random, time, sys, yaml
+import pylink
+import os
+import platform
+import random
+import time
+import sys
 from EyeLinkCoreGraphicsPsychoPy import EyeLinkCoreGraphicsPsychoPy
 from psychopy import visual, core, event, monitors, gui, __version__
 from PIL import Image  # for preparing the Host backdrop image
@@ -27,6 +33,7 @@ from string import ascii_letters, digits
 from utils import * 
 import numpy as np
 import pandas as pd
+import yaml
 
 
 # Switch to the script folder
@@ -66,10 +73,6 @@ rectHeight = exp_config['rect']['rectHeight']
 rectLineWidth = exp_config['rect']['rectLineWidth']
 rectDistCenter = exp_config['rect']['rectDistCenter']
 rectColor = exp_config['rect']['rectColor']
-blockmsgHeight = exp_config['msg']['blockmsgHeight']
-
-fixation_action_color = exp_config['fixation']['fixation_action_color']
-fixation_miss_color = exp_config['fixation']['fixation_miss_color']
 
 sd_mean_mu = exp_config['sd_mean_mu']
 sd_observe = exp_config['sd_observe']
@@ -78,66 +81,6 @@ labels = exp_config['labels']
 scaling_factor = exp_config['scaling_factor']
 start_coin = exp_config['start_coin']
 
-left_key = exp_config['keys']['left_key']
-right_key = exp_config['keys']['right_key']
-
-handness = exp_config['handness']
-glass = exp_config['glass']
-# Set up EDF data file name and local data folder
-#
-# The EDF data filename should not exceed 8 alphanumeric characters
-# use ONLY number 0-9, letters, & _ (underscore) in the filename
-edf_fname = 'TEST'
-
-# Prompt user to specify an EDF data filename
-# before we open a fullscreen window
-# haoxue: put them as they are here for now, and potentially change it when i understand better what dlg_prompt means
-dlg_title = 'Enter EDF File Name'
-dlg_prompt = 'Please enter a subjectID with 8 or fewer characters\n' + \
-             '[letters, numbers, and underscore].'
-
-# loop until we get a valid filename
-while True:
-    dlg = gui.Dlg(dlg_title)
-    dlg.addText(dlg_prompt)
-    dlg.addField('subjectID:', edf_fname)
-    dlg.addField('Right/left handed?', handness, choices=['left','right'])
-    dlg.addField('Glasses/Contact Lens?', glass, choices=['None','Glasses','Contact Lens'])
-    dlg.addText('\nPlease fill out the blanks below to complete the experiment setup:')
-    dlg.addField('Run on a retina screen?', use_retina, choices=[0,1])
-    dlg.addField('Debug Mode?', debug_mode, choices=[0,1])
-    dlg.addField('Eyelink disconnected?', dummy_mode, choices=[0,1])
-    
-    # show dialog and wait for OK or Cancel
-    ok_data = dlg.show()
-    if dlg.OK:  # if ok_data is not None
-        print('EDF data filename: {}'.format(ok_data[0]))
-    else:
-        print('user cancelled')
-        core.quit()
-        sys.exit()
-
-    # get the string entered by the experimenter
-    tmp_str = dlg.data[0]
-    # strip trailing characters, ignore the ".edf" extension (if there is any)
-    edf_fname = tmp_str.rstrip().split('.')[0]
-
-    # check if the filename is valid (length <= 8 & no special char)
-    allowed_char = ascii_letters + digits + '_'
-    if not all([c in allowed_char for c in edf_fname]):
-        print('ERROR: Invalid EDF filename')
-    elif len(edf_fname) > 8:
-        print('ERROR: EDF filename should not exceed 8 characters')
-    else:
-        # save all the varables
-        handness = ok_data[1]
-        glass = ok_data[2]
-        use_retina = ok_data[3]
-        debug_mode = ok_data[4]
-        dummy_mode = ok_data[5]
-        break
-
-# choose between two sets of parameters given debug_mode
 if debug_mode:
     n_blocks = exp_config['n_blocks_debug']
     n_trials = exp_config['n_trials_debug']
@@ -162,6 +105,66 @@ else:
     baseline_length = exp_config['baseline_length']
     extra_fixation_length = exp_config['trial']['extra_fixation_length']
 
+left_key = exp_config['keys']['left_key']
+right_key = exp_config['keys']['right_key']
+
+# Set up EDF data file name and local data folder
+#
+# The EDF data filename should not exceed 8 alphanumeric characters
+# use ONLY number 0-9, letters, & _ (underscore) in the filename
+edf_fname = 'TEST'
+
+# Prompt user to specify an EDF data filename
+# before we open a fullscreen window
+# haoxue: put them as they are here for now, and potentially change it when i understand better what dlg_prompt means
+dlg_title = 'Enter EDF File Name'
+dlg_prompt = 'Please enter a subjectID with 8 or fewer characters\n' + \
+             '[letters, numbers, and underscore].'
+
+# test - very inaccurate! 
+handness = 'left'
+
+
+
+# loop until we get a valid filename
+while True:
+    dlg = gui.Dlg(dlg_title)
+    dlg.addText(dlg_prompt)
+    dlg.addField('subjectID:', edf_fname)
+    dlg.addField('Right/left handed?', handness, choices=['left','right'])
+    dlg.addText('\nPlease fill out the blanks below to complete the experiment setup:')
+    dlg.addField('Run on Windows/Mac?', choices=['windows','Mac'])
+    dlg.addField('Debug Mode?', choices=['0','1'])
+    dlg.addfield('Eyelink connected?', choices=['0','1'])
+    
+    # show dialog and wait for OK or Cancel
+    ok_data = dlg.show()
+    if dlg.OK:  # if ok_data is not None
+        print('EDF data filename: {}'.format(ok_data[0]))
+    else:
+        print('user cancelled')
+        core.quit()
+        sys.exit()
+
+    # get the string entered by the experimenter
+    tmp_str = dlg.data[0]
+    # strip trailing characters, ignore the ".edf" extension (if there is any)
+    edf_fname = tmp_str.rstrip().split('.')[0]
+
+    # check if the filename is valid (length <= 8 & no special char)
+    allowed_char = ascii_letters + digits + '_'
+    if not all([c in allowed_char for c in edf_fname]):
+        print('ERROR: Invalid EDF filename')
+    elif len(edf_fname) > 8:
+        print('ERROR: EDF filename should not exceed 8 characters')
+    else:
+        # save all the varables
+        handness = ok_data[1]
+        use_retina = ok_data[2]
+        debug_mode = ok_data[3]
+        is_connected = ok_data[4]
+        break
+
 # Set up a folder to store the EDF data files and the associated resources
 # e.g., files defining the interest areas used in each trial
 results_folder = 'results'
@@ -181,7 +184,7 @@ if not os.path.exists(session_folder):
 # name the behavioral data file
 data_identifier = os.path.join(session_folder, 'taskData' + session_identifier + '.csv')
 
-# Connect to the EyeLink Host PC
+# Step 1: Connect to the EyeLink Host PC
 #
 # The Host IP address, by default, is "100.1.1.1".
 # the "el_tracker" objected created here can be accessed through the Pylink
@@ -380,15 +383,8 @@ right_type = visual.TextStim(win,
     bold = typeBold,
 )
 
-block_end_msg = 'This marks the end of this block.'+\
-'\nTake a rest if you need.'+\
-'\nHowever, do not move your head and please keep your chin on the chinrest.'+\
-'\nWhen you are ready, press space to proceed.'
-
-baseline_end_msg = 'This marks the end of the baseline measurement period.'+\
-'\nTake a rest if you need.'+\
-'\nHowever, do not move your head and please keep your chin on the chinrest.'+\
-'\nPlease wait for the experimenter''s instructions.'
+block_end_msg = 'This marks the end of this block.\nTake a rest if you need.\nWhen you are ready, press space to proceed.'
+baseline_end_msg = 'This marks the end of the baseline measurement period.\nTake a rest if you need.\nWhen you are ready, press space to proceed.'
 
 # Step 5: Set up the camera and calibrate the tracker
 
@@ -402,7 +398,7 @@ def run_calibrate():
     else:
         task_msg = task_msg + '\nNow, press ENTER twice to calibrate tracker' 
 
-    show_msg(win, task_msg, msgColor, wait_for_keypress=True, key_list=['return'])
+    show_msg(win, task_msg, msgColor, wait_for_keypress=True, key_list=['return','space'])
 
     # skip this step if running the script in Dummy Mode
     if not dummy_mode:
@@ -492,7 +488,7 @@ def run_baseline():
     
     # end of the baseline screen
     clear_screen(win) 
-    show_msg(win, baseline_end_msg, msgColor, wait_for_keypress=True, key_list=['space'])
+    show_msg(win, block_end_msg, msgColor, wait_for_keypress=True, key_list=['space'])
     el_tracker.sendMessage('baseline_end')
 
 # Step 6: Run the experimental trials, index all the trials
@@ -531,33 +527,32 @@ def run_block(block_pars, block_index, curr_cond, practice_flag=0):
     # draw_target (1-default, 0-draw the target then call doDriftCorrect)
     # allow_setup (1-press ESCAPE to recalibrate, 0-not allowed)
     #
-    # Skip drift-check if running the script in Dummy Mode or if it is the practice block
-    if not practice_flag:
-        while not dummy_mode:
-            # terminate the task if no longer connected to the tracker or
-            # user pressed Ctrl-C to terminate the task
-            if (not el_tracker.isConnected()) or el_tracker.breakPressed():
-                terminate_task(win)
-                return pylink.ABORT_EXPT
+    # Skip drift-check if running the script in Dummy Mode
+    while not dummy_mode:
+        # terminate the task if no longer connected to the tracker or
+        # user pressed Ctrl-C to terminate the task
+        if (not el_tracker.isConnected()) or el_tracker.breakPressed():
+            terminate_task(win)
+            return pylink.ABORT_EXPT
 
-            # drift-check and re-do camera setup if ESCAPE is pressed
-            try:
-                error = el_tracker.doDriftCorrect(int(scn_width/2.0),
-                                                  int(scn_height/2.0), 1, 1)
-                # break following a success drift-check
-                if error is not pylink.ESC_KEY:
-                    break
-            except:
-                pass
+        # drift-check and re-do camera setup if ESCAPE is pressed
+        try:
+            error = el_tracker.doDriftCorrect(int(scn_width/2.0),
+                                              int(scn_height/2.0), 1, 1)
+            # break following a success drift-check
+            if error is not pylink.ESC_KEY:
+                break
+        except:
+            pass
 
-        # put tracker in idle/offline mode before recording
+    # put tracker in idle/offline mode before recording
     el_tracker.setOfflineMode()
 
     # Start recording
     # arguments: sample_to_file, events_to_file, sample_over_link,
     # event_over_link (1-yes, 0-no)
     try:
-        el_tracker.startRecording(1, 1, 1, 1) 
+        el_tracker.startRecording(1, 1, 1, 1) # question for Deshawn: should I shut it down between blocks? or actually I do not need?
         # related q: can i do drift check even with the eye track still collecting?
     except RuntimeError as error:
         print("ERROR:", error)
@@ -573,8 +568,6 @@ def run_block(block_pars, block_index, curr_cond, practice_flag=0):
             '\n'+\
             '\n'+bandit_type[0]+' and '+bandit_type[1]+\
             '\n'+\
-            '\nUse left and right arrow key to indicate your decision.'+\
-            '\nTry to avoid moving.'+\
                 '\nPress Space to begin if you are ready.'
     else:
         block_start_msg = 'Block '+str(block_index)+' of '+str(n_blocks)+\
@@ -582,13 +575,12 @@ def run_block(block_pars, block_index, curr_cond, practice_flag=0):
             '\n'+\
             '\n'+bandit_type[0]+' and '+bandit_type[1]+\
             '\n'+\
-            '\nTry to keep your eyes open and avoid blinking.'+\
                 '\nPress Space to begin if you are ready.'
     clear_screen(win) 
-    show_msg(win, block_start_msg, msgColor, wait_for_keypress=True, key_list=['space'], textHeight=blockmsgHeight)
+    show_msg(win, block_start_msg, msgColor, wait_for_keypress=True, key_list=['space'], textHeight=50)
     el_tracker.sendMessage('block_start')
 
-    for trial in range(n_trials): 
+    for trial in range(n_trials): # Haouxe: need to figure out a way to save data
         run_trial(trial, block_pars, bandit_type, curr_cond, block_index)
 
     # end of the block screen
@@ -620,6 +612,34 @@ def run_practice():
     # as -1)
     run_block([machine1_array, machine2_array], block_index=-1, curr_cond=1, practice_flag=1)
 
+
+def calculate_bonus(data):
+    """ Helper function calculating accumulated bonus multiplied by the scaling factor
+
+    """
+    bonus = np.floor(data['total_coin'][-1] * scaling_factor)
+
+    # Caution: maximum and minimum bonus is now hard coded! May want to include
+    # that in the config file too in the future to increase flexibility
+    if bonus < 1: 
+        return 1
+    if bonus > 5:
+        return 5
+    return bonus
+
+def saveData(data):
+    """
+    Collects all the data - experiment, behavioral task, stimuli specs and subject info, converts it to a pandas data frame and saves as a csv.
+    """
+    # The directory has been taken care of in the main flow of the experiment. 
+    # May want to include this check in future versions to increase robustness
+    # if not os.path.isdir('data'): os.mkdir('data')
+    
+    # convert the data type from dictionary to dataframe
+    taskData = pd.DataFrame(data)
+    taskData.to_csv(data_identifier, index = False, encoding = 'utf-8')
+
+
 def run_trial(trial_index, block_pars, bandit_type, curr_cond, block_index):
     """ 
     Function to run each trial
@@ -636,16 +656,9 @@ def run_trial(trial_index, block_pars, bandit_type, curr_cond, block_index):
     fixation_length = np.random.uniform(low=fixation_length_min,high=fixation_length_max)
     
     # append data before the trial starts
-
     data['subjectID'].append(edf_fname)
-    data['seed'].append(seed)
     data['psychopyVers'].append(__version__)
     data['codeVers'].append(exp_config['codeVers'])
-    data['use_retina'].append(use_retina)
-    data['handness'].append(handness)
-    data['glass'].append(glass)
-    data['debug_mode'].append(debug_mode)
-    data['dummy_mode'].append(dummy_mode)
     data['sd_observe'].append(sd_observe)
     data['sd_mean_mu'].append(sd_mean_mu)
     data['sd_rw'].append(sd_rw)
@@ -673,7 +686,7 @@ def run_trial(trial_index, block_pars, bandit_type, curr_cond, block_index):
     # total_coin = start_coin. 
     # Otherwise, initialize total_coin as the total_coin of the last trial
 
-    if (block_index == 1 or block_index == -1) and (trial_index == 0):
+    if (block_index == 1 | block_index == -1) & trial_index == 0:
         data['total_coin'].append(data['start_coin'][0])
     else:
         data['total_coin'].append(data['total_coin'][-1])
@@ -690,7 +703,7 @@ def run_trial(trial_index, block_pars, bandit_type, curr_cond, block_index):
     el_tracker.sendCommand("record_status_message '%s'" % status_msg)
 
     # part 1: fixation (fixation)
-    fixation.lineColor = fixColor
+    fixation.lineColor = (1, 1, 1)
             
     fixation_onset_time = core.getTime()
     el_tracker.sendMessage('fixation_onset') 
@@ -718,7 +731,6 @@ def run_trial(trial_index, block_pars, bandit_type, curr_cond, block_index):
     stimulus_pre_without_fixation_onset_time = core.getTime()
     el_tracker.sendMessage('stimulus_pre_without_fixation_onset')
     
-    
     # remove any existing key press
     event.clearEvents() 
     while core.getTime() - stimulus_pre_without_fixation_onset_time <= stimulus_pre_without_fixation_length_max:
@@ -726,14 +738,14 @@ def run_trial(trial_index, block_pars, bandit_type, curr_cond, block_index):
         right_rect.draw()
         left_type.draw()
         right_type.draw()
-        fixation.lineColor = fixation_action_color
+        fixation.lineColor = (0, 1, 0)
         fixation.draw()
         win.flip()
 
         # collect choice in part 3
         RT = -1  # keep track of the response time
         get_keypress = False
-        choice = '' # default choice
+        choice = -1 # default choice
 
         while (not get_keypress) or (core.getTime() - stimulus_pre_without_fixation_onset_time <= stimulus_pre_without_fixation_length_max):
             # present the picture for a maximum of 5 seconds
@@ -747,65 +759,57 @@ def run_trial(trial_index, block_pars, bandit_type, curr_cond, block_index):
                 el_tracker.sendMessage('tracker_disconnected')
                 abort_trial(win)
                 return error
-            
-            if choice == '':
-                # check keyboard events
-                for keycode, modifier in event.getKeys(modifiers=True):
-                    if keycode == left_key:
-                        # send over a message to log the key press
-                        el_tracker.sendMessage('key_press left_option_chosen')
-                        # get response time in ms, PsychoPy report time in sec
-                        RT = int((core.getTime() - stimulus_pre_without_fixation_onset_time )*1000)
-                        # record which option is chosen 
-                        get_keypress = True
-                        choice = 'machine1'
-                        if machine1_reward_array[trial_index] > 0:
-                            text = '+' + str(machine1_reward_array[trial_index])
-                        else: 
-                            text = machine1_reward_array[trial_index]
-                        left_type.text = text
-                        data['choiceRT'][-1] = RT
-                        data['choice'][-1] = choice
-                        data['reward'][-1] = machine1_reward_array[trial_index]
-                        data['keycode'][-1] = keycode
-                        data['correct'][-1] = choice == data['correctArm'][-1]
-                        data['total_coin'][-1] += machine1_reward_array[trial_index]
-                        break
-                    if keycode == right_key:
-                        # send over a message to log the key press
-                        el_tracker.sendMessage('key_press right_option_chosen')
-                        # get response time in ms, PsychoPy report time in sec
-                        RT = int((core.getTime() - stimulus_pre_without_fixation_onset_time )*1000)
-                        # record which option is chosen
-                        get_keypress = True
-                        choice = 'machine2'
-                        if machine2_reward_array[trial_index] > 0:
-                            text = '+' + str(machine2_reward_array[trial_index])
-                        else: 
-                            text = machine2_reward_array[trial_index]
-                        right_type.text = text
-                        data['choiceRT'][-1] = RT
-                        data['choice'][-1] = choice
-                        data['reward'][-1] = machine2_reward_array[trial_index]
-                        data['keycode'][-1] = keycode
-                        data['correct'][-1] = choice == data['correctArm'][-1]
-                        data['total_coin'][-1] += machine2_reward_array[trial_index]
-                        break
 
-                        # Abort a trial if "ESCAPE" is pressed
-                    if keycode == 'escape':
-                        el_tracker.sendMessage('trial_skipped_by_user')
-                        # clear the screen
-                        clear_screen(win)
-                        # abort trial
-                        abort_trial(win)
-                        return pylink.SKIP_TRIAL
+            # check keyboard events
+            for keycode, modifier in event.getKeys(modifiers=True):
+                if keycode == left_key:
+                    # send over a message to log the key press
+                    el_tracker.sendMessage('key_press left_option_chosen')
+                    # get response time in ms, PsychoPy report time in sec
+                    RT = int((core.getTime() - stimulus_pre_without_fixation_onset_time )*1000)
+                    # record which option is chosen 
+                    get_keypress = True
+                    choice = 'machine1'
+                    left_type.text = machine1_reward_array[trial_index]
+                    data['choiceRT'][-1] = RT
+                    data['choice'][-1] = choice
+                    data['reward'][-1] = machine1_reward_array[trial_index]
+                    data['keycode'][-1] = keycode
+                    data['correct'][-1] = choice == data['correctArm'][-1]
+                    data['total_coin'][-1] += machine1_reward_array[trial_index]
+#                    break
 
-                    # Terminate the task if Ctrl-c
-                    if keycode == 'c' and (modifier['ctrl'] is True):
-                        el_tracker.sendMessage('terminated_by_user')
-                        terminate_task(win)
-                        return pylink.ABORT_EXPT
+                if keycode == right_key:
+                    # send over a message to log the key press
+                    el_tracker.sendMessage('key_press right_option_chosen')
+                    # get response time in ms, PsychoPy report time in sec
+                    RT = int((core.getTime() - stimulus_pre_without_fixation_onset_time )*1000)
+                    # record which option is chosen
+                    get_keypress = True
+                    choice = 'machine2'
+                    right_type.text = machine2_reward_array[trial_index]
+                    data['choiceRT'][-1] = RT
+                    data['choice'][-1] = choice
+                    data['reward'][-1] = machine2_reward_array[trial_index]
+                    data['keycode'][-1] = keycode
+                    data['correct'][-1] = choice == data['correctArm'][-1]
+                    data['total_coin'][-1] += machine2_reward_array[trial_index]
+#                    break
+
+                # Abort a trial if "ESCAPE" is pressed
+                if keycode == 'escape':
+                    el_tracker.sendMessage('trial_skipped_by_user')
+                    # clear the screen
+                    clear_screen(win)
+                    # abort trial
+                    abort_trial(win)
+                    return pylink.SKIP_TRIAL
+
+                # Terminate the task if Ctrl-c
+                if keycode == 'c' and (modifier['ctrl'] is True):
+                    el_tracker.sendMessage('terminated_by_user')
+                    terminate_task(win)
+                    return pylink.ABORT_EXPT
 
     # part 4: reward presentation
     reward_pre_without_fixation_onset_time = core.getTime()
@@ -816,7 +820,7 @@ def run_trial(trial_index, block_pars, bandit_type, curr_cond, block_index):
         left_type.draw()
         right_type.draw()
         if data['keycode'][-1] == []:
-            fixation.lineColor = fixation_miss_color
+            fixation.lineColor = (1,0,0)
         fixation.draw()
         win.flip()
     
@@ -837,31 +841,9 @@ def run_trial(trial_index, block_pars, bandit_type, curr_cond, block_index):
     # Viewer User Manual, "Protocol for EyeLink Data to Viewer Integration"
     el_tracker.sendMessage('TRIAL_RESULT %d' % pylink.TRIAL_OK)
     
-def calculate_bonus(data):
-    """ Helper function calculating accumulated bonus multiplied by the scaling factor
 
-    """
-    bonus = np.floor(data['total_coin'][-1] * scaling_factor)
 
-    # Caution: maximum and minimum bonus is now hard coded! May want to include
-    # that in the config file too in the future to increase flexibility
-    if bonus < 1: 
-        return 1
-    if bonus > 5:
-        return 5
-    return bonus
 
-def saveData(data):
-    """
-    Collects all the data - experiment, behavioral task, stimuli specs and subject info, converts it to a pandas data frame and saves as a csv.
-    """
-    # The directory has been taken care of in the main flow of the experiment. 
-    # May want to include this check in future versions to increase robustness
-    # if not os.path.isdir('data'): os.mkdir('data')
-    
-    # convert the data type from dictionary to dataframe
-    taskData = pd.DataFrame(data)
-    taskData.to_csv(data_identifier, index = False, encoding = 'utf-8')
 
 block_list = np.random.randint(low=1, high=5, size=n_blocks)
 
@@ -873,17 +855,17 @@ np.random.seed(seed)
 # put tracker in idle/offline mode before recording
 el_tracker.setOfflineMode()
 
-# run practice
-run_practice()
-
-fixation.lineColor = fixColor
-
 # calibrate
 run_calibrate()
 
 # Baseline Measurement
 if not dummy_mode:
     run_baseline()
+
+# run practice
+run_practice()
+
+fixation.lineColor = (1,1,1)
 
 # run real task
 for j in range(len(block_list)):
@@ -898,6 +880,7 @@ for j in range(len(block_list)):
 
     machine1_array = gen_params_array(machine1, n_trials)
     machine2_array = gen_params_array(machine2, n_trials)
+
     run_block([machine1_array, machine2_array], j+1, block_list[j])
 
 end_msg = 'You have finished the virtual vegas task. Well done!'+\
@@ -906,8 +889,6 @@ show_msg(win, end_msg, msgColor, wait_for_keypress=True, key_list=['space'])
 
 bonus = calculate_bonus(data)
 
-print('BONUS: '+str(bonus))
-        
 bonus_msg = 'Your accumulated reward equals to a reward of $'+str(bonus)+'!'+\
     '\nThe bonus will be paid together with your base rate at the end of the experiment.'+\
     '\nPress let the experimenter know you have finished.'
@@ -918,6 +899,8 @@ show_msg(win, bonus_msg, msgColor, wait_for_keypress=True, key_list=['space'])
 # stop recording; add 100 msec to catch final events before stopping
 pylink.pumpDelay(100)
 el_tracker.stopRecording()
+
+# TODO: calculate bonus
 
 # Step 7: disconnect, download the EDF file, then terminate the task
 terminate_task(win)

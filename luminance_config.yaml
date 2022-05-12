@@ -2,7 +2,7 @@
 # Description
 # ----------------------------------------------------------------------------
 
-# experiment_config.yaml: 
+# luminance_config.yaml: 
 # settings related to the experiment being run when the bandit.py script is 
 # launched, it is imported as a Python dictionary object
 
@@ -36,6 +36,8 @@ display_experiment_dialog: True
 # primary display device on macOS. If have an external monitor, set this
 # variable True if you choose to "Optimize for Built-in Retina Display"
 # in the Displays preference settings.
+
+display_length: 2000
 use_retina: False
 # Set this variable to True to run the script in "Dummy Mode"
 dummy_mode: True
@@ -79,7 +81,7 @@ calibration:
     foreground_color: [1,1,1]
     background_color: [0, 0, 0] # originally they used win.color, not sure whether i could do this in .yaml file
 msg:
-    msgColor: [0.6,0.6,0.6]
+    msgColor: [1,1,1]
     blockmsgHeight: 35
 type:
     typeColor: [0.6,0.6,0.6]
@@ -89,15 +91,12 @@ fixation:
     fixColor: [0.6,0.6,0.6]
     fixLineWidth: 5
     fixSize: 25
-    fixation_action_color: [0,0.79,0]
-    fixation_miss_color: [0.9,0.55,0]
 rect:
     rectWidth: 400
     rectHeight: 400
     rectLineWidth: 7
     rectDistCenter: 100
-    
-    rectColor: [0.6,0.6,0.6]  
+    rectColor: [0.6,0.6,0.6]
 keys:
     left_key: 'left'
     right_key: 'right'
