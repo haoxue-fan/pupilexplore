@@ -165,9 +165,45 @@ if 'Darwin' in platform.system():
 #for i in np.arange(0.6, 0.8, 0.03):
 #    show_everything('R','S',(0,i,0),display_length)
 
+for i in range(-30, 1):
+    show_everything('R',str(i),(0.6,0.6,0.6),display_length)
+    show_everything('S',str(i),(0.6,0.6,0.6),display_length)
+    show_everything(str(i),'R',(0.6,0.6,0.6),display_length)
+    show_everything(str(i),'S',(0.6,0.6,0.6),display_length)
+
+for i in range(1, 30):
+    show_everything('R','+'+str(i),(0.6,0.6,0.6),display_length)
+    show_everything('S','+'+str(i),(0.6,0.6,0.6),display_length)
+    show_everything('+'+str(i),'R',(0.6,0.6,0.6),display_length)
+    show_everything('+'+str(i),'S',(0.6,0.6,0.6),display_length)
+
+
+
+
+
+
+
+
+
+
+
+show_everything('R','S',(0.6,0.6,0.6),display_length)
+show_everything('R','S',(0.9,0.55,0),display_length)
+show_everything('R','S',(0,0.79,0),display_length)
+
+
+show_everything('S','R',(0.6,0.6,0.6),display_length)
+show_everything('S','R',(0.9,0.55,0),display_length)
+show_everything('S','R',(0,0.79,0),display_length)
+
+
+show_everything('S','S',(0.6,0.6,0.6),display_length)
+show_everything('S','S',(0.9,0.55,0),display_length)
+show_everything('S','S',(0,0.79,0),display_length)
+
 show_everything('R','R',(0.6,0.6,0.6),display_length)
 show_everything('R','R',(0.9,0.55,0),display_length)
-show_everything('R','R',(0,0.78,0),display_length)
+show_everything('R','R',(0,0.79,0),display_length)
 
 #show_everything('R','S',(0,0,1),display_length)
 

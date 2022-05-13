@@ -54,7 +54,7 @@ cond: [
 labels: ['S', 'R']
 starting_coins: 250
 scaling_factor: 0.01
-n_blocks: 5 #30
+n_blocks: 16 #30
 n_trials: 10
 n_blocks_debug: 2
 n_trials_debug: 3
@@ -80,7 +80,7 @@ calibration:
     background_color: [0, 0, 0] # originally they used win.color, not sure whether i could do this in .yaml file
 msg:
     msgColor: [0.6,0.6,0.6]
-    blockmsgHeight: 35
+    blockmsgHeight: 45
 type:
     typeColor: [0.6,0.6,0.6]
     typeSize: 75
@@ -101,6 +101,8 @@ rect:
 keys:
     left_key: 'left'
     right_key: 'right'
+    baseline_start_key: ['down']
+    baseline_end_key: ['up']
 trial:
     fixation_length_min: 1.0
     fixation_length_max: 2.0
@@ -114,7 +116,12 @@ trial:
     stimulus_pre_without_fixation_length_max_debug: 1.0 
     reward_pre_without_fixation_length_debug: 1.5 #5 #1.5
     extra_fixation_length_debug: 0.5
-baseline_length: 10  # 300
+baseline_length: 120  # 300
 baseline_length_debug: 10    
-    
+before_drift_check_interval: 2
+
+practice_flag: True
+calibrate_flag: True
+baseline_flag: True
+experiment_flag: True
 

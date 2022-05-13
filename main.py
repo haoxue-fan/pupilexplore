@@ -80,9 +80,19 @@ start_coin = exp_config['start_coin']
 
 left_key = exp_config['keys']['left_key']
 right_key = exp_config['keys']['right_key']
+baseline_start_key = exp_config['keys']['baseline_start_key']
+baseline_end_key = exp_config['keys']['baseline_end_key']
+
+before_drift_check_interval = exp_config['before_drift_check_interval']
 
 handness = exp_config['handness']
 glass = exp_config['glass']
+
+practice_flag = exp_config['practice_flag']
+calibrate_flag = exp_config['calibrate_flag']
+baseline_flag = exp_config['baseline_flag']
+experiment_flag = exp_config['experiment_flag']
+
 # Set up EDF data file name and local data folder
 #
 # The EDF data filename should not exceed 8 alphanumeric characters
@@ -95,18 +105,25 @@ edf_fname = 'TEST'
 dlg_title = 'Enter EDF File Name'
 dlg_prompt = 'Please enter a subjectID with 8 or fewer characters\n' + \
              '[letters, numbers, and underscore].'
+start_block_n = 1
 
 # loop until we get a valid filename
 while True:
     dlg = gui.Dlg(dlg_title)
     dlg.addText(dlg_prompt)
     dlg.addField('subjectID:', edf_fname)
-    dlg.addField('Right/left handed?', handness, choices=['left','right'])
-    dlg.addField('Glasses/Contact Lens?', glass, choices=['None','Glasses','Contact Lens'])
+    dlg.addField('Right/left handed?', choices=['left','right'])
+    dlg.addField('Glasses/Contact Lens?', choices=['None','Glasses','Contact Lens'])
     dlg.addText('\nPlease fill out the blanks below to complete the experiment setup:')
-    dlg.addField('Run on a retina screen?', use_retina, choices=[0,1])
-    dlg.addField('Debug Mode?', debug_mode, choices=[0,1])
-    dlg.addField('Eyelink disconnected?', dummy_mode, choices=[0,1])
+    dlg.addField('Run on a retina screen?', choices=[0,1])
+    dlg.addField('Debug Mode?', choices=[0,1])
+    dlg.addField('Eyelink disconnected?', choices=[0,1])
+    dlg.addText('\nPlease fill out the blanks below to indicate the included stages of the task:')
+    dlg.addField('Practice?', choices = [1,0])
+    dlg.addField('Calibrate? (strongly recommend include)', choices = [1,0])
+    dlg.addField('Baseline Pupil Size?', choices = [1,0])
+    dlg.addField('Experiment?', choices = [1,0])
+    dlg.addField('Start from Round?', start_block_n)
     
     # show dialog and wait for OK or Cancel
     ok_data = dlg.show()
@@ -135,6 +152,12 @@ while True:
         use_retina = ok_data[3]
         debug_mode = ok_data[4]
         dummy_mode = ok_data[5]
+        practice_flag = ok_data[6]
+        calibrate_flag = ok_data[7]
+        baseline_flag = ok_data[8]
+        experiment_flag = ok_data[9]
+        start_block_n = ok_data[10]
+        print(ok_data)
         break
 
 # choose between two sets of parameters given debug_mode
@@ -353,6 +376,33 @@ left_rect = visual.ShapeStim(win,
         lineColor = rectColor,
         ori = 0)
 
+left_rect_line1 = visual.Line(win,
+        start = (-rectDistCenter-rectWidth, -rectHeight/2),
+        end = (-rectDistCenter-rectWidth, rectHeight/2+rectLineWidth/2),
+        lineWidth = rectLineWidth,
+        lineColor = rectColor,
+        ori = 0)
+
+left_rect_line2 = visual.Line(win,
+        start = (-rectDistCenter-rectWidth+rectLineWidth/2, rectHeight/2),
+        end = (-rectDistCenter, rectHeight/2),
+        lineWidth = rectLineWidth,
+        lineColor = rectColor,
+        ori = 0)
+        
+left_rect_line3 = visual.Line(win,
+        start = (-rectDistCenter, rectHeight/2),
+        end = (-rectDistCenter, -rectHeight/2),
+        lineWidth = rectLineWidth,
+        lineColor = rectColor,
+        ori = 0)   
+        
+left_rect_line4 = visual.Line(win,
+        start = (-rectDistCenter, -rectHeight/2),
+        end = (-rectDistCenter-rectWidth, -rectHeight/2),
+        lineWidth = rectLineWidth,
+        lineColor = rectColor,
+        ori = 0)   
 # right slot machine
 right_rect = visual.ShapeStim(win,
         vertices  = ((rectDistCenter+rectWidth, -rectHeight/2), (rectDistCenter+rectWidth, rectHeight/2),\
@@ -380,14 +430,14 @@ right_type = visual.TextStim(win,
     bold = typeBold,
 )
 
-block_end_msg = 'This marks the end of this block.'+\
-'\nTake a rest if you need.'+\
-'\nHowever, do not move your head and please keep your chin on the chinrest.'+\
+block_end_msg = 'This marks the end of this round.'+\
+'\n\nDo NOT move your head and Please keep your chin on the chinrest.'+\
+'\n\nTtake a rest if you need (close your eyes, blinking, etc).'+\
 '\nWhen you are ready, press space to proceed.'
 
-baseline_end_msg = 'This marks the end of the baseline measurement period.'+\
-'\nTake a rest if you need.'+\
-'\nHowever, do not move your head and please keep your chin on the chinrest.'+\
+baseline_end_msg = 'This marks the end of the baseline measurement. Good job!'+\
+'\n\nDo NOT move your head and Please keep your chin on the chinrest.'+\
+'\n\nTtake a rest if you need (close your eyes, blinking, etc).'+\
 '\nPlease wait for the experimenter''s instructions.'
 
 # Step 5: Set up the camera and calibrate the tracker
@@ -439,7 +489,7 @@ def terminate_task(win):
         el_tracker.closeDataFile()
 
         # Show a file transfer message on the screen
-        msg = 'EDF data is transferring from EyeLink Host PC...'
+        msg = 'EDF data is transferring from EyeLink Host PC, please do not shut down the computer.'
         show_msg(win, msg, msgColor, wait_for_keypress=False)
         # Download the EDF data file from the Host PC to a local data folder
         # parameters: source_file_on_the_host, destination_file_on_local_drive
@@ -480,9 +530,10 @@ def run_baseline():
     # introduce them to the fixation page
     msg = 'Now we are going to measure your baseline pupil size.\nThis will take 5 minutes.'+\
     '\nPlease fixate your eyes on the cross in the center of the screen.\nPlease try to keep your eyes open and reduce blinking.'+\
-    '\nWe will let you know when this is done and then you can take a rest.'
+    '\nWe will let you know when this is done and then you can take a rest.'+\
+    '\nPlease avoid moving during this 5 minute or after. Otherwise we will have to abort the experiment.'
 
-    show_msg(win, msg, msgColor, wait_for_keypress= True)
+    show_msg(win, msg, msgColor, wait_for_keypress= True, key_list=baseline_start_key)
 
     baseline_onset_time = core.getTime()
     el_tracker.sendMessage('baseline_onset') # Haoxue: add trial number?
@@ -492,7 +543,7 @@ def run_baseline():
     
     # end of the baseline screen
     clear_screen(win) 
-    show_msg(win, baseline_end_msg, msgColor, wait_for_keypress=True, key_list=['space'])
+    show_msg(win, baseline_end_msg, msgColor, wait_for_keypress=True, key_list=baseline_end_key)
     el_tracker.sendMessage('baseline_end')
 
 # Step 6: Run the experimental trials, index all the trials
@@ -514,7 +565,7 @@ def run_block(block_pars, block_index, curr_cond, practice_flag=0):
     el_tracker = pylink.getEYELINK()
 
     # put the tracker in the offline mode first
-    el_tracker.setOfflineMode()
+#    el_tracker.setOfflineMode()
 
     # send a "TRIALID" message to mark the start of a trial, see Data
     # Viewer User Manual, "Protocol for EyeLink Data to Viewer Integration"
@@ -525,6 +576,38 @@ def run_block(block_pars, block_index, curr_cond, practice_flag=0):
     status_msg = 'BLOCK number %d' % block_index
     el_tracker.sendCommand("record_status_message '%s'" % status_msg)
 
+    # start of the block screen
+    # disclaimer: the layout has only been tested on DELL 21.5 inch screen
+    if practice_flag:
+        block_start_msg = 'Practice Block'+\
+            '\nSlot Machines in this round:'+\
+            '\n\n\n\n\n\n\n'+\
+            '\n\n\n\n\n\n\nUse left and right arrow key to indicate your decision.'+\
+            '\nTry to avoid moving.'+\
+            '\nPress Space when you are ready.'
+
+    else:
+        block_start_msg = 'Round '+str(block_index)+' of '+str(n_blocks)+\
+            '\nSlot Machines in this round:'+\
+            '\n\n\n\n\n\n\n'+\
+            '\n\n\n\n\n\n\nUse left and right arrow key to indicate your decision.'+\
+            '\nTry to keep your eyes open and avoid blinking.'+\
+                '\nPress Space to begin calibration.'+\
+                '\nOn the calibration page, look at the white dot and press Space.'
+    clear_screen(win) 
+    left_rect.draw()
+#    left_rect_line1.draw()
+#    left_rect_line2.draw()
+#    left_rect_line3.draw()
+#    left_rect_line4.draw()
+    right_rect.draw()
+    left_type.text = bandit_type[0]
+    right_type.text = bandit_type[1]
+    left_type.draw()
+    right_type.draw()
+    show_msg(win, block_start_msg, msgColor, wait_for_keypress=True, key_list=['space'], textHeight=blockmsgHeight, clear_screen_flag=False)
+    el_tracker.sendMessage('block_start')
+    
     # we recommend drift-check at the beginning of each trial
     # the doDriftCorrect() function requires target position in integers
     # the last two arguments:
@@ -542,6 +625,14 @@ def run_block(block_pars, block_index, curr_cond, practice_flag=0):
 
             # drift-check and re-do camera setup if ESCAPE is pressed
             try:
+                before_drift_check_msg = 'Calibration starts in about '+str(before_drift_check_interval)+' seconds...'
+    
+                show_msg(win, before_drift_check_msg, msgColor, wait_for_keypress=False, textHeight=blockmsgHeight)
+                el_tracker.sendMessage('before_drift_check')
+                before_drift_check_onset = core.getTime()
+                before_drift_check_interval_curr = np.random.uniform(low=before_drift_check_interval-0.5,high=before_drift_check_interval+0.5)
+                while core.getTime() - before_drift_check_onset <= before_drift_check_interval_curr:
+                    continue
                 error = el_tracker.doDriftCorrect(int(scn_width/2.0),
                                                   int(scn_height/2.0), 1, 1)
                 # break following a success drift-check
@@ -565,28 +656,6 @@ def run_block(block_pars, block_index, curr_cond, practice_flag=0):
         return pylink.TRIAL_ERROR
     # Allocate some time for the tracker to cache some samples
     pylink.pumpDelay(100)
-
-    # start of the block screen
-    if practice_flag:
-        block_start_msg = 'Practice Block'+\
-            '\nSlot Machines in this block:'+\
-            '\n'+\
-            '\n'+bandit_type[0]+' and '+bandit_type[1]+\
-            '\n'+\
-            '\nUse left and right arrow key to indicate your decision.'+\
-            '\nTry to avoid moving.'+\
-                '\nPress Space to begin if you are ready.'
-    else:
-        block_start_msg = 'Block '+str(block_index)+' of '+str(n_blocks)+\
-            '\nSlot Machines in this block:'+\
-            '\n'+\
-            '\n'+bandit_type[0]+' and '+bandit_type[1]+\
-            '\n'+\
-            '\nTry to keep your eyes open and avoid blinking.'+\
-                '\nPress Space to begin if you are ready.'
-    clear_screen(win) 
-    show_msg(win, block_start_msg, msgColor, wait_for_keypress=True, key_list=['space'], textHeight=blockmsgHeight)
-    el_tracker.sendMessage('block_start')
 
     for trial in range(n_trials): 
         run_trial(trial, block_pars, bandit_type, curr_cond, block_index)
@@ -874,31 +943,35 @@ np.random.seed(seed)
 el_tracker.setOfflineMode()
 
 # run practice
-run_practice()
-
-fixation.lineColor = fixColor
+if practice_flag:
+    run_practice()
+    fixation.lineColor = fixColor
 
 # calibrate
-run_calibrate()
+if calibrate_flag:
+    run_calibrate()
 
 # Baseline Measurement
 if not dummy_mode:
-    run_baseline()
+    if baseline_flag:
+        run_baseline()
 
 # run real task
-for j in range(len(block_list)):
-    # generate index for the current label - 0: not first label; 1: first label
-    curr_label_logic = [x == labels[1] for x in exp_config['cond'][block_list[j]-1]]
+if experiment_flag:
     
-    # generate a pair of machines with differnt mean and different types
-    machine1, machine2 = [[0, 0, 0, 0], [0, 0, 0, 0]]    
-    while machine1[0] == machine2[0]:
-        machine1 = gen_params(sd_observe, sd_mean_mu, sd_rw, labels, curr_label_logic[0])
-        machine2 = gen_params(sd_observe, sd_mean_mu, sd_rw, labels, curr_label_logic[1])
+    for j in range(start_block_n-1, len(block_list)):
+        # generate index for the current label - 0: not first label; 1: first label
+        curr_label_logic = [x == labels[1] for x in exp_config['cond'][block_list[j]-1]]
+        
+        # generate a pair of machines with differnt mean and different types
+        machine1, machine2 = [[0, 0, 0, 0], [0, 0, 0, 0]]    
+        while machine1[0] == machine2[0]:
+            machine1 = gen_params(sd_observe, sd_mean_mu, sd_rw, labels, curr_label_logic[0])
+            machine2 = gen_params(sd_observe, sd_mean_mu, sd_rw, labels, curr_label_logic[1])
 
-    machine1_array = gen_params_array(machine1, n_trials)
-    machine2_array = gen_params_array(machine2, n_trials)
-    run_block([machine1_array, machine2_array], j+1, block_list[j])
+        machine1_array = gen_params_array(machine1, n_trials)
+        machine2_array = gen_params_array(machine2, n_trials)
+        run_block([machine1_array, machine2_array], j+1, block_list[j])
 
 end_msg = 'You have finished the virtual vegas task. Well done!'+\
     '\nPress SPACE to see how much you have earned as a bonus in the task!.'
