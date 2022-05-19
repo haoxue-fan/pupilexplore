@@ -432,12 +432,12 @@ right_type = visual.TextStim(win,
 
 block_end_msg = 'This marks the end of this round.'+\
 '\n\nDo NOT move your head and Please keep your chin on the chinrest.'+\
-'\n\nTtake a rest if you need (close your eyes, blinking, etc).'+\
+'\n\nTake a rest if you need (close your eyes, blinking, etc).'+\
 '\nWhen you are ready, press space to proceed.'
 
 baseline_end_msg = 'This marks the end of the baseline measurement. Good job!'+\
 '\n\nDo NOT move your head and Please keep your chin on the chinrest.'+\
-'\n\nTtake a rest if you need (close your eyes, blinking, etc).'+\
+'\n\nTake a rest if you need (close your eyes, blinking, etc).'+\
 '\nPlease wait for the experimenter''s instructions.'
 
 # Step 5: Set up the camera and calibrate the tracker
