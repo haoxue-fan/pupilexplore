@@ -6,51 +6,63 @@ Created on Wed Apr 13 15:01:25 2022
 @author: Taylor D. Burke
 """
 
-import numpy as np
-from two_armed_bandit_experiment import TwoArmedBanditExperiment
+import os
+import multiprocessing
+from simulate_two_armed_bandit_experiment import TwoArmedBanditExperiment
 
-experiment_specs = {
-    "num_participants": 50,
-    "num_blocks": 0,  # This is being changed on the 2nd for loop.
-    "num_trials_per_block": 10,
-    "conditions": [],  # If conditions array is empty, all possible conditions will be used.
-    "reward_distribution": {
-        "resample_means": True,
-        "mean": 0,
-        "variance": 0,  # This is being changed on the 3rd for loop
-    },
-    "arm_1": {"label": "R", "variance": 16},
-    "arm_2": {"label": "S", "variance": 0.00001},
-    "exploration": {
-        "strategy": "",  # This is being changed on the 1st for loop
-        "uncertainty_bonus": 1,
-        "choice_stochasticity": 1,  # This is equivelant to lambda.
-        "balance_factor": 1,  # This is equivelant to beta.
-    },
-}
 
-significant_combinations = []
+def simulate(experiment_inputs):
+    exploration_strategy, num_blocks, variance = experiment_inputs
+    experiment_specs = {
+        "num_participants": 50,
+        "num_blocks": num_blocks,
+        "num_trials_per_block": 10,
+        "reward_distribution": {
+            "resample_means": True,
+            "mean": 0,
+            "variance": variance,
+        },
+        "arm_1": {
+            "label": "R",
+            "variance": 16,
+            "prior_mean_estimate": 0,
+            "prior_variance_in_estimate": variance,
+        },
+        "arm_2": {
+            "label": "S",
+            "variance": 0.00001,
+            "prior_mean_estimate": 0,
+            "prior_variance_in_estimate": variance,
+        },
+        "exploration": {
+            "strategy": exploration_strategy,
+            "uncertainty_bonus": 1,
+            "choice_stochasticity": 1,  # This is equivelant to lambda.
+            "balance_factor": 1,  # This is equivelant to beta.
+        },
+    }
+
+    for num_experiment in range(100):
+        file_path = f"../data/{exploration_strategy}_{num_blocks}_{variance}_data_{num_experiment + 1}.csv"
+        if not os.path.isfile(file_path):
+            experiment = TwoArmedBanditExperiment(experiment_specs)
+            experiment.pilot()
+            experiment.data.to_csv(
+                file_path,
+                index=False,
+            )
+
+
+experiment_inputs = []
 for exploration_strategy in ["UCB", "Thompson Sampling", "Hybrid"]:
-    experiment_specs["exploration"]["strategy"] = exploration_strategy
     for num_blocks in [16, 20, 24, 28]:
-        experiment_specs["num_blocks"] = num_blocks
         for variance in [25, 36, 49, 64, 81, 100]:
-            experiment_specs["reward_distribution"]["variance"] = variance
-            experiment_regressor_p_values = np.ndarray(100)
-            for experiment in range(100):
-                experiment = TwoArmedBanditExperiment(experiment_specs)
-                experiment.pilot()
-                experiment_regressor_p_values[experiment] = experiment.regress()
-            if len(np.where(experiment_regressor_p_values < 0.05)) >= 95:
-                significant_combinations.append(
-                    (exploration_strategy, num_blocks, variance)
-                )
-            break
-        break
-    break
+            experiment_inputs.append(
+                (exploration_strategy, num_blocks, variance),
+            )
 
 
-for exploration_strategy, num_blocks, variance in significant_combinations:
-    print(
-        f"Strategy: {exploration_strategy}, num_blocks: {num_blocks}, variance: {variance}"
-    )
+if __name__ == "__main__":
+    pool = multiprocessing.Pool()
+    pool = multiprocessing.Pool(processes=5)
+    pool.map(simulate, experiment_inputs)

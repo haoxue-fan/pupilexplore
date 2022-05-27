@@ -16,24 +16,29 @@ class BayesianMultiArmedBandit:
     Attributes:
         arms (array<Arm>): collection of all the Arms the agent must chose from.
         num_arms (Integer): number of all the Arms the agent must chose from.
-        true_means (array<float>): all the true means, specific to each
+        true_arm_means (array<float>): all the true means, specific to each
             arm's reward distribution
-        true_variances (array<float>): all the true variances, specific to each
+        true_arm_variances (array<float>): all the true variances, specific to each
             arm's reward distribution
-        estimate_means (array<float>): all the estimate means, specific to each
+        mean_estimates (array<float>): all the estimate means, specific to each
             arm's reward distribution
-        estimate_variances (array<float>): all the estimate variances, specific
+        variance_in_estimates (array<float>): all the estimate variances, specific
             to each arm's reward distribution
         timesteps (integer):  number of pulls the agent can make.
     """
 
-    def __init__(self, arms, timesteps):
+    def __init__(
+        self, arms, timesteps, prior_mean_estimates, prior_variance_in_estimates
+    ):
         """Initialize BayesianMultiArmedBandit.
 
         Args:
             arms (Array<Arm>): collection of all the Arms the agent must chose
                 from.
             timesteps (Integer): number of pulls the agent mnust make.
+            #TODO: fill out
+            prior_mean_estimates (Array<Float>): DESCRIPTION.
+            prior_estimate_variance (Array<Float>): DESCRIPTION.
 
         Returns:
             None.
@@ -41,16 +46,18 @@ class BayesianMultiArmedBandit:
         """
         self.arms = arms
         self.num_arms = len(self.arms)
-
-        self.true_means = [arm.mean for arm in arms]
-        self.true_variances = [arm.variance for arm in arms]
-
-        self.estimate_means = np.zeros((self.num_arms, timesteps + 1))
-        self.estimate_variances = np.zeros((self.num_arms, timesteps + 1))
-        self.estimate_variances[:, 0] = np.copy(self.true_variances)
-
         self.timesteps = timesteps
         self.num_optimal_actions = 0
+        self.rewards = np.zeros(timesteps)
+
+        self.true_arm_means = [arm.mean for arm in arms]
+        self.true_arm_variances = [arm.variance for arm in arms]
+
+        self.mean_estimates = np.zeros((self.num_arms, timesteps))
+        self.variance_in_estimates = np.zeros((self.num_arms, timesteps))
+
+        self.mean_estimates[:, 0] = prior_mean_estimates
+        self.variance_in_estimates[:, 0] = prior_variance_in_estimates
 
     def update_estimates(self, arm_selected, reward_received, timestep):
         """Update beliefs using Kalman filtering equations.
@@ -64,33 +71,36 @@ class BayesianMultiArmedBandit:
             None.
 
         """
-        true_variance = self.true_variances[arm_selected]
+        true_arm_variance = self.true_arm_variances[arm_selected]
 
         # Get agent's prior belief about the selected arm's reward distribution.
-        prior_estimate_mean = self.estimate_means[arm_selected][timestep]
-        prior_estimate_variance = self.estimate_variances[arm_selected][timestep]
+        prior_mean_estimate = self.mean_estimates[arm_selected][timestep]
+        prior_variance_in_estimate = self.variance_in_estimates[arm_selected][timestep]
 
         # Implement Kalman filtering equations.
-        learning_rate = prior_estimate_variance / (
-            prior_estimate_variance + true_variance
+        learning_rate = prior_variance_in_estimate / (
+            prior_variance_in_estimate + true_arm_variance
         )
-        posterior_estimate_variance = (
-            prior_estimate_variance - learning_rate * prior_estimate_variance
+        posterior_variance_in_estimate = (
+            prior_variance_in_estimate - learning_rate * prior_variance_in_estimate
         )
-        prediction_error = reward_received - prior_estimate_mean
-        posterior_estimate_mean = prior_estimate_mean + learning_rate * prediction_error
+        prediction_error = reward_received - prior_mean_estimate
+        posterior_mean_estimate = prior_mean_estimate + learning_rate * prediction_error
 
-        # Carry over the posteriors into priors.
-        self.estimate_variances[:, timestep + 1] = np.copy(
-            self.estimate_variances[:, timestep]
-        )
-        self.estimate_means[:, timestep + 1] = np.copy(self.estimate_means[:, timestep])
-
-        # Only the arm that was selected gets belief updating for new priors.
-        self.estimate_variances[arm_selected][
-            timestep + 1
-        ] = posterior_estimate_variance
-        self.estimate_means[arm_selected][timestep + 1] = posterior_estimate_mean
+        # Carry over this trial's posteriors into next trial's priors if this
+        # is not the last timestep. Subtract one because timestep is zero
+        # indexed.
+        if timestep != self.timesteps - 1:
+            self.variance_in_estimates[:, timestep + 1] = np.copy(
+                self.variance_in_estimates[:, timestep]
+            )
+            self.mean_estimates[:, timestep + 1] = np.copy(
+                self.mean_estimates[:, timestep]
+            )
+            self.variance_in_estimates[arm_selected][
+                timestep + 1
+            ] = posterior_variance_in_estimate
+            self.mean_estimates[arm_selected][timestep + 1] = posterior_mean_estimate
 
     def evaluate_action(self, arm_selected):
         """Evaluate agent's previous action.
@@ -108,11 +118,8 @@ class BayesianMultiArmedBandit:
 
         """
         self.num_optimal_actions += int(
-            self.arms[arm_selected].mean == np.max(self.true_means)
+            self.arms[arm_selected].mean == np.max(self.true_arm_means)
         )
-
-    # TODO: create a default select arm function that selected the arm with the
-    # argmax nean
 
     def pull_arm(self, arm_selected, timestep):
         """Pull the specified arm.
@@ -130,6 +137,7 @@ class BayesianMultiArmedBandit:
         """
         self.arms[arm_selected].num_pulls += 1
         reward_received = self.arms[arm_selected].get_reward()
+        self.rewards[timestep] = reward_received
 
         self.update_estimates(arm_selected, reward_received, timestep)
         self.evaluate_action(arm_selected)
@@ -151,7 +159,7 @@ class BayesianMultiArmedBandit:
                 BayesianMultiArmedBandit's necessary information.
         """
         information = f"A bandit with the following {self.num_arms} arms:\n"
-        for num_arm in range(len(self.arms_means)):
+        for num_arm in range(self.num_arms):
             information += f"{num_arm + 1}: {str(self.arms[num_arm])} \n"
 
         return information

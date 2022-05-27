@@ -9,13 +9,7 @@ Created on Wed Apr 13 13:14:03 2022
 from bandit_arm import Arm
 import numpy as np
 import pandas as pd
-
-from scipy.stats import norm
-import matplotlib.pyplot as plt
 from itertools import permutations
-from collections import defaultdict
-import statsmodels.api as sm
-import statsmodels.formula.api as smf
 from itertools import combinations_with_replacement
 from bayesian_two_armed_bandits import (
     UCBBayesianTwoArmedBandit,
@@ -24,22 +18,49 @@ from bayesian_two_armed_bandits import (
 )
 
 
+def create_experiment_dataframe():
+    """Create the dataframe that stores all the data across the experiment.
+
+    Returns:
+        pd.DataFrame
+
+    """
+    columns = [
+        "subject",
+        "block",
+        "condition",
+        "trial",
+        "reward",
+        "choice_probability",
+        "choice",
+    ]
+
+    for arm in ["left_arm", "right_arm"]:
+        columns.append(arm + "_estimate_mean")
+        columns.append(arm + "_true_mean")
+        columns.append(arm + "_variance_in_estimate")
+        columns.append(arm + "_true_variance")
+
+    return pd.DataFrame(columns=columns)
+
+
 class TwoArmedBanditExperiment:
-    """Two armed bandit experiment witg an approximate bayesian agent.
+    """Two armed bandit experiment with an approximate bayesian agent.
 
     Atttributes:
-        experiment_specs (Dictionary): provided experiment specifications
+        parameters (Dictionary): provided experiment specifications
         num_participants (Integer): number of participants
         num_blocks (Integer): number of blocks per particpant
         num_trials_per_blocks (Integer): number of trials within every block
-        resample_means (Boolean): whether or not to resample the means of the
-            arms at the beginning of every block.
         reward_mean (Integer):
         reward_variance (Integer):
-        arms (Array<Arm>):
+        prior_mean_estimates ():
+        prior_variance_in_estimates ():
         conditions (Array<Tuple<Integer>):
+        block_condition_assignments ():
         exploration_strategy (String): determines how the bandit will select
             arms; can either be 'UCB', 'Thompson Sampling', of 'Hybrid'.
+        data ():
     """
 
     def __init__(self, experiment_specs):
@@ -57,11 +78,16 @@ class TwoArmedBanditExperiment:
                     "num_trials_per_block": INTEGER,
                     "conditions": ARRAY<TUPLE<STRING>>,
                     "reward_distribution": {
-                        "resample_means": BOOLEAN,
                         "mean": INTEGER,
                         "variance": INTEGER},
-                    "arm_1": {"label": STRING, "variance": INTEGER},
-                    "arm_2": {"label": STRING, "variance": INTEGER},
+                    "arm_1": {"label": STRING,
+                              "variance": INTEGER,
+                              "prior_mean_estimate": FLOAT,
+                              "prior_variance_in_estimate": FLOAT},
+                    "arm_2": {"label": STRING,
+                              "variance": INTEGER,
+                              "prior_mean_estimate": FLOAT,
+                              "prior_variance_in_estimate": FLOAT},
                     "exploration": {
                         "strategy": STRING,
                         "uncertainty_bonus": INTEGER,
@@ -74,39 +100,31 @@ class TwoArmedBanditExperiment:
             None.
 
         """
-        self.experiment_specs = experiment_specs
+        self.parameters = experiment_specs
 
         self.num_participants = experiment_specs["num_participants"]
         self.num_blocks = experiment_specs["num_blocks"]
         self.num_trials_per_block = experiment_specs["num_trials_per_block"]
 
         # Reward distribution for both arms
-        self.resample_means = experiment_specs["reward_distribution"]["resample_means"]
         self.reward_mean = experiment_specs["reward_distribution"]["mean"]
         self.reward_variance = experiment_specs["reward_distribution"]["variance"]
 
-        self.arms = np.empty(2, dtype=Arm)
+        self.prior_mean_estimates = np.zeros(2)
+        self.prior_variance_in_estimates = np.zeros(2)
+        arms_labels = np.empty(2, dtype=str)
 
-        if (
-            "mean" not in experiment_specs["arm_1"]
-            and "mean" not in experiment_specs["arm_2"]
-            and not self.resample_means
-        ):
-            raise KeyError(
-                "If not resampling the means for each arm, you need to \
-                supply the means for each arm"
-            )
+        for num_arm in range(2):
+            arm_info = experiment_specs[f"arm_{num_arm + 1}"]
+            self.prior_mean_estimates[num_arm] = arm_info["prior_mean_estimate"]
+            self.prior_variance_in_estimates[num_arm] = arm_info[
+                "prior_variance_in_estimate"
+            ]
+            arms_labels[num_arm] = arm_info["label"]
 
-        self.init_arms()
-        arms_labels = [arm.label for arm in self.arms]
-
-        if len(experiment_specs["conditions"]) == 0:
-            self.conditions = set(map(tuple, permutations(arms_labels)))
-            self.conditions.update(
-                map(tuple, combinations_with_replacement(arms_labels, 2))
-            )
-            self.conditions = list(self.conditions)
-        else:
+        # Create and randomize conditions across all experiment blocks
+        # If no conditions are given, create all the possible conditions
+        if "conditions" in experiment_specs:
             conditions = experiment_specs["conditions"]
             for left_arm_label, right_arm_label in conditions:
                 if (
@@ -116,8 +134,14 @@ class TwoArmedBanditExperiment:
                     raise KeyError(
                         "Each condition should contain only valid arm labels"
                     )
-            # Use cast into a set to eliminate condition repeats.
+            # Casting into a set to eliminate condition repeats.
             self.conditions = list(set(conditions))
+        else:
+            self.conditions = set(map(tuple, permutations(arms_labels)))
+            self.conditions.update(
+                map(tuple, combinations_with_replacement(arms_labels, 2))
+            )
+            self.conditions = sorted(list(self.conditions))
 
         assert (
             self.num_blocks % len(self.conditions) == 0
@@ -136,47 +160,51 @@ class TwoArmedBanditExperiment:
                 self.choice_stochasticity = experiment_specs["exploration"][
                     "choice_stochasticity"
                 ]
-                bandit_type = UCBBayesianTwoArmedBandit
             case "Thompson Sampling":
-                bandit_type = ThompsonBayesianTwoArmedBandit
+                pass
             case "Hybrid":
                 self.uncertainty_bonus = experiment_specs["exploration"][
                     "uncertainty_bonus"
                 ]
                 self.balance_factor = experiment_specs["exploration"]["balance_factor"]
-                bandit_type = HybridBayesianTwoArmedBandit
             case _:
                 raise ValueError(
                     "Your choice of exploration strategies must be either be UCB, Thompson Sampling, or Hybrid"
                 )
 
-        self.bandits = defaultdict(
-            lambda: np.ndarray(
-                (self.num_participants, num_blocks_per_condition), dtype=bandit_type
-            )
-        )
+        self.data = create_experiment_dataframe()
 
-    def init_arms(self):
-        """(Re)initialize the arms for the bandit to select from.
+    def get_block_arms(self, condition):
+        """Get the arms to be used for a block, given the block condition.
 
-        This is called when self is initialized and, if the arms' mean rewards
-        are being resampled, then at the beginning of every block.
+        Assumes that every block resamples the means of both arms.
+
+        Args:
+            condition (Tuple<String>): label of the left and right arm,
+                indicating what the block condition is.
 
         Returns:
-            None.
+            block_arms (Array<Arm>): the left and right arms to be used on the
+                current block.
 
         """
         new_arm_means = np.random.normal(
             self.reward_mean, np.sqrt(self.reward_variance), 2
         )
-        for arm in range(2):
-            arm_specs = self.experiment_specs[f"arm_{arm + 1}"]
-            self.arms[arm] = Arm(
-                arm_specs["label"],
-                new_arm_means[arm],
-                arm_specs["variance"],
+        block_arms = np.empty(2, dtype=Arm)
+        for num_arm in range(2):
+            arm_label = condition[num_arm]
+            arm = 1
+            if arm_label == self.parameters["arm_2"]["label"]:
+                arm = 2
+            block_arms[num_arm] = Arm(
+                arm_label,
+                new_arm_means[num_arm],
+                self.parameters[f"arm_{arm}"]["variance"],
                 self.num_trials_per_block,
             )
+
+        return block_arms
 
     def run_participant(self, participant):
         """Simulate a single participant completing the experiment.
@@ -188,18 +216,11 @@ class TwoArmedBanditExperiment:
             None.
 
         """
-        block_condition_counts = defaultdict(lambda: 0)
+
         for block in range(self.num_blocks):
-            if self.resample_means:
-                self.init_arms()
 
-            block_arms = np.array(self.arms)
-            condition = self.conditions[self.block_condition_assignments[block]]
-
-            for arm in self.arms:
-                for i in range(2):
-                    if arm.label == condition[i]:
-                        block_arms[i] = arm
+            block_condition = self.conditions[self.block_condition_assignments[block]]
+            block_arms = self.get_block_arms(block_condition)
 
             match self.exploration_strategy:
                 case "UCB":
@@ -208,10 +229,15 @@ class TwoArmedBanditExperiment:
                         self.choice_stochasticity,
                         block_arms,
                         self.num_trials_per_block,
+                        self.prior_mean_estimates,
+                        self.prior_variance_in_estimates,
                     )
                 case "Thompson Sampling":
                     bandit = ThompsonBayesianTwoArmedBandit(
-                        block_arms, self.num_trials_per_block
+                        block_arms,
+                        self.num_trials_per_block,
+                        self.prior_mean_estimates,
+                        self.prior_variance_in_estimates,
                     )
                 case "Hybrid":
                     bandit = HybridBayesianTwoArmedBandit(
@@ -219,12 +245,30 @@ class TwoArmedBanditExperiment:
                         self.balance_factor,
                         block_arms,
                         self.num_trials_per_block,
+                        self.prior_mean_estimates,
+                        self.prior_variance_in_estimates,
                     )
 
             bandit.run_trials()
-            block_condition_count = block_condition_counts[condition]
-            self.bandits[condition][participant][block_condition_count] = bandit
-            block_condition_counts[condition] += 1
+
+            block_data = create_experiment_dataframe()
+            block_data["trial"] = np.array(range(1, self.num_trials_per_block + 1))
+            block_data["subject"] = participant + 1
+            block_data["block"] = block + 1
+            block_data["condition"] = "" + block_condition[0] + block_condition[1]
+            block_data["choice"] = bandit.choices
+            block_data["choice_probability"] = bandit.choice_probabilities
+            block_data["reward"] = bandit.rewards
+
+            for num_arm, name in zip(range(2), ["left_arm", "right_arm"]):
+                block_data[name + "_true_mean"] = bandit.true_arm_means[num_arm]
+                block_data[name + "_true_variance"] = bandit.true_arm_variances[num_arm]
+                block_data[name + "_estimate_mean"] = bandit.mean_estimates[num_arm]
+                block_data[
+                    name + "_variance_in_estimate"
+                ] = bandit.variance_in_estimates[num_arm]
+
+            self.data = pd.concat([self.data, block_data], ignore_index=True)
 
     def pilot(self):
         """Simulate every participant completing the experiment.
@@ -239,131 +283,91 @@ class TwoArmedBanditExperiment:
             np.random.shuffle(self.block_condition_assignments)
             self.run_participant(participant)
 
-    def plot_p_optimal_across_conditions(self):
-        """Plot the probability of selecting the optimal arm across all conditions.
+    # TODO: plot the reward distribution
+    # TODO: plot  choice probability over expected value difference
+    # TODO: change existing plots to not use the stored bandits
+    # def plot_p_optimal_across_conditions(self):
+    #     """Plot the probability of sekecting the optimal arm across all conditions.
 
-        Returns:
-            None.
+    #     Returns:
+    #         None.
 
-        """
-        for condition in self.conditions:
-            mean_num_optimal_actions = np.mean(
-                np.vectorize(lambda bandit: bandit.num_optimal_actions)(
-                    self.bandits[condition]
-                )
-            )
-            p_optimal = mean_num_optimal_actions / self.num_trials_per_block
-            plt.plot(f"{condition[0]}{condition[1]}", p_optimal, "bo")
+    #     """
+    #     for condition in self.conditions:
 
-        plt.xlabel("Condition")
-        plt.ylabel("P(optimal)")
-        plt.show()
+    #         num_optimal = self.data[]
+    #         plt.plot(f"{condition[0]}{condition[1]}",
+    #                  num_optimal/ self.num_trials_per_block, "bo")
 
-    def plot_relative_uncertainty_across_conditions(self):
-        """Plot average relative uncertainty across all conditions.
+    #     plt.xlabel("Condition")
+    #     plt.ylabel("P(optimal")
+    #     plt.show()
 
-        Returns:
-            None.
+    # def plot_p_optimal_across_conditions(self):
+    #     """Plot the probability of selecting the optimal arm across all conditions.
 
-        """
-        for condition in self.conditions:
-            mean_relative_uncertainty = np.mean(
-                np.vectorize(
-                    lambda bandit: np.mean(
-                        np.sqrt(bandit.estimate_variances[0])
-                        - np.sqrt(bandit.estimate_variances[1])
-                    )
-                )(self.bandits[condition])
-            )
-            plt.plot(f"{condition[0]}{condition[1]}", mean_relative_uncertainty, "bo")
+    #     Returns:
+    #         None.
 
-        y_ax_lower_limit = -4.01
-        y_ax_upper_limit = 4.01
-        plt.yticks(list(range(int(y_ax_lower_limit), int(y_ax_upper_limit) + 1, 2)))
-        plt.ylim([y_ax_lower_limit, y_ax_upper_limit])
-        plt.xlabel("Condition")
-        plt.ylabel("Relative uncertainty (RU)")
-        plt.show()
+    #     """
+    #     for condition in self.conditions:
+    #         mean_num_optimal_actions = np.mean(
+    #             np.vectorize(lambda bandit: bandit.num_optimal_actions)(
+    #                 self.bandits[condition]
+    #             )
+    #         )
+    #         p_optimal = mean_num_optimal_actions / self.num_trials_per_block
+    #         plt.plot(f"{condition[0]}{condition[1]}", p_optimal, "bo")
 
-    # TODO: ask Hao why total uncertainty is super low
-    def plot_total_uncertainty_across_conditions(self):
-        """Plot average total uncertainty across all conditions.
+    #     plt.xlabel("Condition")
+    #     plt.ylabel("P(optimal)")
+    #     plt.show()
 
-        Returns:
-            None.
+    # def plot_relative_uncertainty_across_conditions(self):
+    #     """Plot average relative uncertainty across all conditions.
 
-        """
-        for condition in self.conditions:
-            mean_total_uncertainty = np.mean(
-                np.vectorize(
-                    lambda bandit: np.mean(
-                        np.sqrt(
-                            bandit.estimate_variances[0] + bandit.estimate_variances[1]
-                        )
-                    )
-                )(self.bandits[condition])
-            )
-            plt.plot(f"{condition[0]}{condition[1]}", mean_total_uncertainty, "bo")
+    #     Returns:
+    #         None.
 
-        # y_ax_lower_limit = 1.99
-        # y_ax_upper_limit = 7.01
-        # plt.yticks(list(range(int(y_ax_lower_limit), int(y_ax_upper_limit) + 1)))
-        # plt.ylim([y_ax_lower_limit, y_ax_upper_limit])
-        plt.xlabel("Condition")
-        plt.ylabel("Total uncertainty (TU)")
-        plt.show()
+    #     """
+    #     for condition in self.conditions:
+    #         mean_relative_uncertainty = np.mean(
+    #             np.vectorize(
+    #                 lambda bandit: np.mean(
+    #                     np.sqrt(bandit.estimate_variances[0])
+    #                     - np.sqrt(bandit.estimate_variances[1])
+    #                 )
+    #             )(self.bandits[condition])
+    #         )
+    #         plt.plot(f"{condition[0]}{condition[1]}", mean_relative_uncertainty, "bo")
 
-    def regress(self):
-        # formula = 'C ~ -1 + cond + cond:V + (-1 + cond + cond:V|S)';
-        for condition in self.conditions:
-            for participant in range(len(self.bandits[condition])):
-                for block in range(len(self.bandits[condition][participant])):
-                    bandit = self.bandits[condition][participant][block]
-                    # Making the choices array a binary array where 1's indicate
-                    # True values of choosing the left arm.
-                    arm_1_choice = np.where(bandit.choices == 0, True, False).astype(
-                        float
-                    )
-                    V = bandit.estimate_means[0] - bandit.estimate_means[1]
-                    RU = np.sqrt(bandit.estimate_variances[0])
-                    -np.sqrt(bandit.estimate_variances[1])
-                    VTU = V / np.sqrt(
-                        bandit.estimate_variances[0] + bandit.estimate_variances[1]
-                    )
-                    formula = "arm_1_choice ~ -1 + V + RU + VTU + (-1 + V + RU + VTU)"
-                    data = pd.DataFrame(columns=["arm_1_choice", "V" "RU" "VTU"])
-                    data["arm_1_choice"] = arm_1_choice
-                    data["V"] = V
-                    data["RU"] = RU
-                    data["VTU"] = VTU
-                    model = smf.glm(formula, data=data, family=sm.families.Gaussian())
-                    model.fit()
-                    print(model.summary())
+    #     y_ax_lower_limit = -4.01
+    #     y_ax_upper_limit = 4.01
+    #     plt.yticks(list(range(int(y_ax_lower_limit), int(y_ax_upper_limit) + 1, 2)))
+    #     plt.ylim([y_ax_lower_limit, y_ax_upper_limit])
+    #     plt.xlabel("Condition")
+    #     plt.ylabel("Relative uncertainty (RU)")
+    #     plt.show()
 
+    # def plot_total_uncertainty_across_conditions(self):
+    #     """Plot average total uncertainty across all conditions.
 
-# TODO: plot the reward distribution
-# TODO: plot  choice probability over expected value difference
+    #     Returns:
+    #         None.
 
-if __name__ == "__main__":
-    experiment_specs = {
-        "num_participants": 50,
-        "num_blocks": 12,
-        "num_trials_per_block": 20,
-        "conditions": [],
-        "reward_distribution": {"resample_means": True, "mean": 0, "variance": 100},
-        "arm_1": {"label": "S", "variance": 0.00001},
-        "arm_2": {"label": "R", "variance": 16},
-        "exploration": {
-            "strategy": "UCB",
-            "uncertainty_bonus": 1,
-            "choice_stochasticity": 1,  # This is equivelant to lambda.
-            "balance_factor": 4,  # This is equivelant to beta.
-        },
-    }
+    #     """
+    #     for condition in self.conditions:
+    #         mean_total_uncertainty = np.mean(
+    #             np.vectorize(
+    #                 lambda bandit: np.mean(
+    #                     np.sqrt(
+    #                         bandit.estimate_variances[0] + bandit.estimate_variances[1]
+    #                     )
+    #                 )
+    #             )(self.bandits[condition])
+    #         )
+    #         plt.plot(f"{condition[0]}{condition[1]}", mean_total_uncertainty, "bo")
 
-    experiment = TwoArmedBanditExperiment(experiment_specs)
-    experiment.pilot()
-    experiment.plot_p_optimal_across_conditions()
-    experiment.plot_relative_uncertainty_across_conditions()
-    experiment.plot_total_uncertainty_across_conditions()
-    experiment.regress()
+    #     plt.xlabel("Condition")
+    #     plt.ylabel("Total uncertainty (TU)")
+    #     plt.show()

@@ -21,7 +21,9 @@ class BayesianTwoArmedBandit(BayesianMultiArmedBandit):
             across trials
     """
 
-    def __init__(self, arms, timesteps):
+    def __init__(
+        self, arms, timesteps, prior_mean_estimates, prior_variance_in_estimates
+    ):
         """Initialize BayesianTwoArmedBandit.
 
         Args:
@@ -33,9 +35,11 @@ class BayesianTwoArmedBandit(BayesianMultiArmedBandit):
             None.
 
         """
-        self.choices = np.zeros(timesteps + 1)
+        self.choices = np.zeros(timesteps)
         self.choice_probabilities = np.zeros(timesteps)
-        BayesianMultiArmedBandit.__init__(self, arms, timesteps)
+        BayesianMultiArmedBandit.__init__(
+            self, arms, timesteps, prior_mean_estimates, prior_variance_in_estimates
+        )
 
 
 class UCBBayesianTwoArmedBandit(BayesianTwoArmedBandit):
@@ -47,7 +51,15 @@ class UCBBayesianTwoArmedBandit(BayesianTwoArmedBandit):
             policy, lambda.
     """
 
-    def __init__(self, uncertainty_bonus, choice_stochasticity, arms, timesteps):
+    def __init__(
+        self,
+        uncertainty_bonus,
+        choice_stochasticity,
+        arms,
+        timesteps,
+        prior_mean_estimates,
+        prior_variance_in_estimates,
+    ):
         """Initialize UCBBayesianTwoArmedBandit.
 
         Args:
@@ -64,7 +76,9 @@ class UCBBayesianTwoArmedBandit(BayesianTwoArmedBandit):
         """
         self.uncertainty_bonus = uncertainty_bonus
         self.choice_stochasticity = choice_stochasticity
-        BayesianTwoArmedBandit.__init__(self, arms, timesteps)
+        BayesianTwoArmedBandit.__init__(
+            self, arms, timesteps, prior_mean_estimates, prior_variance_in_estimates
+        )
 
     def select_arm(self, timestep):
         """Select an arm according to the Gaussian CDF (probit) policy.
@@ -75,9 +89,9 @@ class UCBBayesianTwoArmedBandit(BayesianTwoArmedBandit):
         Returns:
             None.
         """
-        bonused_reward_estimates = self.estimate_means[
+        bonused_reward_estimates = self.mean_estimates[
             :, timestep
-        ] + self.uncertainty_bonus * np.sqrt(self.estimate_variances[:, timestep])
+        ] + self.uncertainty_bonus * np.sqrt(self.variance_in_estimates[:, timestep])
         choice_probability = norm.cdf(
             (bonused_reward_estimates[0] - bonused_reward_estimates[1])
             / self.choice_stochasticity
@@ -112,7 +126,9 @@ class ThompsonBayesianTwoArmedBandit(BayesianTwoArmedBandit):
             across trials
     """
 
-    def __init__(self, arms, timesteps):
+    def __init__(
+        self, arms, timesteps, prior_mean_estimates, prior_variance_in_estimates
+    ):
         """Initialize ThompsonBayesianTwoArmedBandit.
 
         Args:
@@ -124,7 +140,9 @@ class ThompsonBayesianTwoArmedBandit(BayesianTwoArmedBandit):
             None.
 
         """
-        BayesianTwoArmedBandit.__init__(self, arms, timesteps)
+        BayesianTwoArmedBandit.__init__(
+            self, arms, timesteps, prior_mean_estimates, prior_variance_in_estimates
+        )
 
     def select_arm(self, timestep):
         """Select an arm according to the Thompson Sampling policy.
@@ -136,10 +154,10 @@ class ThompsonBayesianTwoArmedBandit(BayesianTwoArmedBandit):
             None.
         """
         choice_probability = norm.cdf(
-            (self.estimate_means[0][timestep] - self.estimate_means[1][timestep])
+            (self.mean_estimates[0][timestep] - self.mean_estimates[1][timestep])
             / np.sqrt(
-                self.estimate_variances[0][timestep]
-                + self.estimate_variances[1][timestep]
+                self.variance_in_estimates[0][timestep]
+                + self.variance_in_estimates[1][timestep]
             )
         )
         self.choice_probabilities[timestep] = choice_probability
@@ -174,7 +192,15 @@ class HybridBayesianTwoArmedBandit(BayesianTwoArmedBandit):
             exploration, beta.
     """
 
-    def __init__(self, uncertainty_bonus, balance_factor, arms, timesteps):
+    def __init__(
+        self,
+        uncertainty_bonus,
+        balance_factor,
+        arms,
+        timesteps,
+        prior_mean_estimates,
+        prior_variance_in_estimates,
+    ):
         """Initialize HybridBayesianTwoArmedBandit.
 
         Args:
@@ -192,7 +218,9 @@ class HybridBayesianTwoArmedBandit(BayesianTwoArmedBandit):
         """
         self.uncertainty_bonus = uncertainty_bonus
         self.balance_factor = balance_factor
-        BayesianTwoArmedBandit.__init__(self, arms, timesteps)
+        BayesianTwoArmedBandit.__init__(
+            self, arms, timesteps, prior_mean_estimates, prior_variance_in_estimates
+        )
 
     def select_arm(self, timestep):
         """Select an arm according to the hyrbrid policy.
@@ -207,15 +235,15 @@ class HybridBayesianTwoArmedBandit(BayesianTwoArmedBandit):
         """
         random_exploration_probability = (
             self.balance_factor
-            * (self.estimate_means[0][timestep] - self.estimate_means[1][timestep])
+            * (self.mean_estimates[0][timestep] - self.mean_estimates[1][timestep])
             / np.sqrt(
-                self.estimate_variances[0][timestep]
-                + self.estimate_variances[1][timestep]
+                self.variance_in_estimates[0][timestep]
+                + self.variance_in_estimates[1][timestep]
             )
         )
         directed_exploration_probability = self.uncertainty_bonus * (
-            np.sqrt(self.estimate_variances[0][timestep])
-            - np.sqrt(self.estimate_variances[1][timestep])
+            np.sqrt(self.variance_in_estimates[0][timestep])
+            - np.sqrt(self.variance_in_estimates[1][timestep])
         )
 
         choice_probability = norm.cdf(
