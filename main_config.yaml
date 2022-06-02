@@ -107,14 +107,14 @@ trial:
     fixation_length_min: 1.0
     fixation_length_max: 2.0
     stimulus_pre_with_fixation_length: 3.0
-    stimulus_pre_without_fixation_length_max: 1.5
-    reward_pre_without_fixation_length: 1.5
+    stimulus_pre_green_fixation_length_max: 1.5
+    reward_pre_red_fixation_length: 1.5
     extra_fixation_length: 2.0
     fixation_length_min_debug: 1.0 # 5 # 1.0
     fixation_length_max_debug: 1.5 # 5.5 # 1.5
     stimulus_pre_with_fixation_length_debug: 1.5 
-    stimulus_pre_without_fixation_length_max_debug: 1.0 
-    reward_pre_without_fixation_length_debug: 1.5 #5 #1.5
+    stimulus_pre_green_fixation_length_max_debug: 1.0 
+    reward_pre_red_fixation_length_debug: 1.5 #5 #1.5
     extra_fixation_length_debug: 0.5
 baseline_length: 120  # 300
 baseline_length_debug: 10    

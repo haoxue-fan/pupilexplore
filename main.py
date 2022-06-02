@@ -172,16 +172,16 @@ if debug_mode:
     fixation_length_min = exp_config['trial']['fixation_length_min_debug']
     fixation_length_max = exp_config['trial']['fixation_length_max_debug']
     stimulus_pre_with_fixation_length = exp_config['trial']['stimulus_pre_with_fixation_length_debug']
-    stimulus_pre_without_fixation_length_max = exp_config['trial']['stimulus_pre_without_fixation_length_max_debug']
-    reward_pre_without_fixation_length = exp_config['trial']['reward_pre_without_fixation_length_debug']
+    stimulus_pre_green_fixation_length_max = exp_config['trial']['stimulus_pre_green_fixation_length_max_debug']
+    reward_pre_red_fixation_length = exp_config['trial']['reward_pre_red_fixation_length_debug']
     baseline_length = exp_config['baseline_length_debug']
     extra_fixation_length = exp_config['trial']['extra_fixation_length_debug']
 else:
     fixation_length_min = exp_config['trial']['fixation_length_min']
     fixation_length_max = exp_config['trial']['fixation_length_max']
     stimulus_pre_with_fixation_length = exp_config['trial']['stimulus_pre_with_fixation_length']
-    stimulus_pre_without_fixation_length_max = exp_config['trial']['stimulus_pre_without_fixation_length_max']
-    reward_pre_without_fixation_length = exp_config['trial']['reward_pre_without_fixation_length']
+    stimulus_pre_green_fixation_length_max = exp_config['trial']['stimulus_pre_green_fixation_length_max']
+    reward_pre_red_fixation_length = exp_config['trial']['reward_pre_red_fixation_length']
     baseline_length = exp_config['baseline_length']
     extra_fixation_length = exp_config['trial']['extra_fixation_length']
 
@@ -633,6 +633,7 @@ def run_block(block_pars, block_index, curr_cond, practice_flag=0):
                 before_drift_check_interval_curr = np.random.uniform(low=before_drift_check_interval-0.5,high=before_drift_check_interval+0.5)
                 while core.getTime() - before_drift_check_onset <= before_drift_check_interval_curr:
                     continue
+                el_tracker.sendMessage('start_drift_check')
                 error = el_tracker.doDriftCorrect(int(scn_width/2.0),
                                                   int(scn_height/2.0), 1, 1)
                 # break following a success drift-check
@@ -807,7 +808,7 @@ def run_trial(trial_index, block_pars, bandit_type, curr_cond, block_index):
                 for keycode, modifier in event.getKeys(modifiers=True):
                     if keycode == left_key:
                         # send over a message to log the key press
-                        el_tracker.sendMessage('key_press left_option_chosen')
+                        el_tracker.sendMessage('early_key_press left_option_chosen')
                         # get response time in ms, PsychoPy report time in sec
                         RT = int((core.getTime() - stimulus_pre_with_fixation_length )*1000)
                         # record which option is chosen 
@@ -823,7 +824,7 @@ def run_trial(trial_index, block_pars, bandit_type, curr_cond, block_index):
                         break
                     if keycode == right_key:
                         # send over a message to log the key press
-                        el_tracker.sendMessage('key_press right_option_chosen')
+                        el_tracker.sendMessage('early_key_press right_option_chosen')
                         # get response time in ms, PsychoPy report time in sec
                         RT = int((core.getTime() - stimulus_pre_with_fixation_length )*1000)
                         # record which option is chosen
@@ -855,13 +856,13 @@ def run_trial(trial_index, block_pars, bandit_type, curr_cond, block_index):
     
     # part 3: stimulus presentation + choice (bandits_type)
     #         skip part 3 if part 2 is early press
-    stimulus_pre_without_fixation_onset_time = core.getTime()
-    el_tracker.sendMessage('stimulus_pre_without_fixation_onset')
+    stimulus_pre_green_fixation_onset_time = core.getTime()
+    el_tracker.sendMessage('stimulus_pre_green_fixation_onset')
     
     
     # remove any existing key press
     event.clearEvents() 
-    while core.getTime() - stimulus_pre_without_fixation_onset_time <= stimulus_pre_without_fixation_length_max:
+    while core.getTime() - stimulus_pre_green_fixation_onset_time <= stimulus_pre_green_fixation_length_max:
         left_rect.draw()
         right_rect.draw()
         left_type.draw()
@@ -875,9 +876,9 @@ def run_trial(trial_index, block_pars, bandit_type, curr_cond, block_index):
         get_keypress = False
         choice = '' # default choice
 
-        while (not get_keypress) or (core.getTime() - stimulus_pre_without_fixation_onset_time <= stimulus_pre_without_fixation_length_max):
+        while (not get_keypress) or (core.getTime() - stimulus_pre_green_fixation_onset_time <= stimulus_pre_green_fixation_length_max):
             # present the picture for a maximum of 5 seconds
-            if core.getTime() - stimulus_pre_without_fixation_onset_time > stimulus_pre_without_fixation_length_max: 
+            if core.getTime() - stimulus_pre_green_fixation_onset_time > stimulus_pre_green_fixation_length_max: 
                 el_tracker.sendMessage('time_out')
                 break
 
@@ -895,7 +896,7 @@ def run_trial(trial_index, block_pars, bandit_type, curr_cond, block_index):
                         # send over a message to log the key press
                         el_tracker.sendMessage('key_press left_option_chosen')
                         # get response time in ms, PsychoPy report time in sec
-                        RT = int((core.getTime() - stimulus_pre_without_fixation_onset_time )*1000)
+                        RT = int((core.getTime() - stimulus_pre_green_fixation_onset_time )*1000)
                         # record which option is chosen 
                         get_keypress = True
                         choice = 'machine1'
@@ -915,7 +916,7 @@ def run_trial(trial_index, block_pars, bandit_type, curr_cond, block_index):
                         # send over a message to log the key press
                         el_tracker.sendMessage('key_press right_option_chosen')
                         # get response time in ms, PsychoPy report time in sec
-                        RT = int((core.getTime() - stimulus_pre_without_fixation_onset_time )*1000)
+                        RT = int((core.getTime() - stimulus_pre_green_fixation_onset_time )*1000)
                         # record which option is chosen
                         get_keypress = True
                         choice = 'machine2'
@@ -948,9 +949,9 @@ def run_trial(trial_index, block_pars, bandit_type, curr_cond, block_index):
                         return pylink.ABORT_EXPT
 
     # part 4: reward presentation
-    reward_pre_without_fixation_onset_time = core.getTime()
-    el_tracker.sendMessage('reward_pre_without_fixation_onset')
-    while core.getTime() - reward_pre_without_fixation_onset_time <= reward_pre_without_fixation_length:
+    reward_pre_red_fixation_onset_time = core.getTime()
+    el_tracker.sendMessage('reward_pre_red_fixation_onset')
+    while core.getTime() - reward_pre_red_fixation_onset_time <= reward_pre_red_fixation_length:
         left_rect.draw()
         right_rect.draw()
         left_type.draw()
