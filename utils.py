@@ -11,7 +11,7 @@ import time
 import sys
 from EyeLinkCoreGraphicsPsychoPy import EyeLinkCoreGraphicsPsychoPy
 from psychopy import visual, core, event, monitors, gui
-from PIL import Image  # for preparing the Host backdrop image
+#from PIL import Image  # for preparing the Host backdrop image
 from string import ascii_letters, digits
 import numpy as np
 
@@ -26,26 +26,38 @@ def clear_screen(win, background_color = [-1,-1,-1]):
     win.flip()
 
 
-def show_msg(win, text, msgcolor, wait_for_keypress=True, key_list=None, textHeight=None):
+def show_msg(win, text, msgcolor, wait_for_keypress=True, key_list=None, textHeight=None, msg=None, clear_screen_flag=True):
     """ Show task instructions on screen"""
     scn_width, scn_height = win.size
-    if textHeight is not None:
-        msg = visual.TextStim(win, text,
-                          color=msgcolor,
-                          wrapWidth=scn_width/2,
-                          height=textHeight)
-    else:
-        msg = visual.TextStim(win, text,
+    if msg is None:
+        
+        if textHeight is not None:
+            msg = visual.TextStim(win, text,
                               color=msgcolor,
-                              wrapWidth=scn_width/2)
-    clear_screen(win)
+                              wrapWidth=scn_width/2,
+                              height=textHeight)
+        else:
+            msg = visual.TextStim(win, text,
+                                  color=msgcolor,
+                                  wrapWidth=scn_width/2)
+    if clear_screen_flag:
+        clear_screen(win)
     msg.draw()
     win.flip()
 
     # wait indefinitely, terminates upon any key press
     if wait_for_keypress:
-        event.waitKeys(keyList=key_list)
-        clear_screen(win)
+
+        for keycode, modifier in event.waitKeys(modifiers=True, keyList=key_list+['q']):
+            if keycode == 'q':
+                win.close()
+                core.quit()
+                break
+            if keycode in key_list and keycode != 'q':
+                clear_screen(win)
+                break
+#        event.waitKeys(keyList=key_list)
+    
 
 
 
@@ -125,6 +137,7 @@ def initializeData():
         'reward': [],
         'start_coin': [],
         'total_coin': [],
+        'early_press': [],
     }   
     return taskData
 

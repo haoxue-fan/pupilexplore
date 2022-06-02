@@ -22,7 +22,7 @@ from multiprocessing import dummy
 import pylink, os, platform, random, time, sys, yaml
 from EyeLinkCoreGraphicsPsychoPy import EyeLinkCoreGraphicsPsychoPy
 from psychopy import visual, core, event, monitors, gui, __version__
-from PIL import Image  # for preparing the Host backdrop image
+#from PIL import Image  # for preparing the Host backdrop image
 from string import ascii_letters, digits
 from utils import * 
 import numpy as np
@@ -123,7 +123,7 @@ while True:
     dlg.addField('Calibrate? (strongly recommend include)', choices = [1,0])
     dlg.addField('Baseline Pupil Size?', choices = [1,0])
     dlg.addField('Experiment?', choices = [1,0])
-    dlg.addField('Start from Round?', start_block_n)
+    dlg.addField('Start from Round?', start_block_n) # could possibly use this to start from a specific round
     
     # show dialog and wait for OK or Cancel
     ok_data = dlg.show()
@@ -432,12 +432,12 @@ right_type = visual.TextStim(win,
 
 block_end_msg = 'This marks the end of this round.'+\
 '\n\nDo NOT move your head and Please keep your chin on the chinrest.'+\
-'\n\nTake a rest if you need (close your eyes, blinking, etc).'+\
+'\n\nTtake a rest if you need (close your eyes, blinking, etc).'+\
 '\nWhen you are ready, press space to proceed.'
 
 baseline_end_msg = 'This marks the end of the baseline measurement. Good job!'+\
 '\n\nDo NOT move your head and Please keep your chin on the chinrest.'+\
-'\n\nTake a rest if you need (close your eyes, blinking, etc).'+\
+'\n\nTtake a rest if you need (close your eyes, blinking, etc).'+\
 '\nPlease wait for the experimenter''s instructions.'
 
 # Step 5: Set up the camera and calibrate the tracker
@@ -737,6 +737,7 @@ def run_trial(trial_index, block_pars, bandit_type, curr_cond, block_index):
     data['reward'].append([])
     data['keycode'].append([])
     data['correct'].append([])
+    data['early_press'].append([])
     
     # for the first trial in the first block (of practice and main experiment), 
     # total_coin = start_coin. 
@@ -764,6 +765,7 @@ def run_trial(trial_index, block_pars, bandit_type, curr_cond, block_index):
     fixation_onset_time = core.getTime()
     el_tracker.sendMessage('fixation_onset') 
     
+    # first block of the task: increase the fixation length
     if trial_index == 0:
         fixation_length += extra_fixation_length
         
@@ -772,18 +774,87 @@ def run_trial(trial_index, block_pars, bandit_type, curr_cond, block_index):
         win.flip()
     
     # part 2: stimulus presentation (fixation + bandits_type)
+    #         the trial will be terminated if they made a decision in part 2
     stimulus_pre_with_fixation_onset_time = core.getTime()
     el_tracker.sendMessage('stimulus_pre_with_fixation_onset') 
     
-    while core.getTime() - stimulus_pre_with_fixation_onset_time  <= stimulus_pre_with_fixation_length: # Haoxue: is core.getTime() an accurate one?
+    while core.getTime() - stimulus_pre_with_fixation_onset_time  <= stimulus_pre_with_fixation_length: 
         fixation.draw()
         left_rect.draw()
         right_rect.draw()
         left_type.draw()
         right_type.draw()
         win.flip()
+        
+        RT = -1  # keep track of the response time
+        get_keypress = False
+        choice = '' # default choice
+
+        while (not get_keypress) or (core.getTime() - stimulus_pre_with_fixation_onset_time  <= stimulus_pre_with_fixation_length):
+            # present the picture for a maximum of 5 seconds
+            if core.getTime() - stimulus_pre_with_fixation_onset_time  > stimulus_pre_with_fixation_length:
+                break
+
+            # abort the current trial if the tracker is no longer recording
+            error = el_tracker.isRecording()
+            if error is not pylink.TRIAL_OK:
+                el_tracker.sendMessage('tracker_disconnected')
+                abort_trial(win)
+                return error
+            
+            if choice == '':
+                # check keyboard events
+                for keycode, modifier in event.getKeys(modifiers=True):
+                    if keycode == left_key:
+                        # send over a message to log the key press
+                        el_tracker.sendMessage('key_press left_option_chosen')
+                        # get response time in ms, PsychoPy report time in sec
+                        RT = int((core.getTime() - stimulus_pre_with_fixation_length )*1000)
+                        # record which option is chosen 
+                        get_keypress = True
+                        choice = 'machine1'
+                        data['choiceRT'][-1] = RT
+                        data['choice'][-1] = choice
+                        data['reward'][-1] = machine1_reward_array[trial_index]
+                        data['keycode'][-1] = keycode
+                        data['correct'][-1] = choice == data['correctArm'][-1]
+                        data['total_coin'][-1] += 0
+                        data['early_press'][-1] = 1
+                        break
+                    if keycode == right_key:
+                        # send over a message to log the key press
+                        el_tracker.sendMessage('key_press right_option_chosen')
+                        # get response time in ms, PsychoPy report time in sec
+                        RT = int((core.getTime() - stimulus_pre_with_fixation_length )*1000)
+                        # record which option is chosen
+                        get_keypress = True
+                        choice = 'machine2'
+                        data['choiceRT'][-1] = RT
+                        data['choice'][-1] = choice
+                        data['reward'][-1] = machine2_reward_array[trial_index]
+                        data['keycode'][-1] = keycode
+                        data['correct'][-1] = choice == data['correctArm'][-1]
+                        data['total_coin'][-1] += 0
+                        data['early_press'][-1] = 1
+                        break
+
+                        # Abort a trial if "ESCAPE" is pressed
+                    if keycode == 'escape':
+                        el_tracker.sendMessage('trial_skipped_by_user')
+                        # clear the screen
+                        clear_screen(win)
+                        # abort trial
+                        abort_trial(win)
+                        return pylink.SKIP_TRIAL
+
+                    # Terminate the task if Ctrl-c
+                    if keycode == 'c' and (modifier['ctrl'] is True):
+                        el_tracker.sendMessage('terminated_by_user')
+                        terminate_task(win)
+                        return pylink.ABORT_EXPT
     
     # part 3: stimulus presentation + choice (bandits_type)
+    #         skip part 3 if part 2 is early press
     stimulus_pre_without_fixation_onset_time = core.getTime()
     el_tracker.sendMessage('stimulus_pre_without_fixation_onset')
     
@@ -806,7 +877,7 @@ def run_trial(trial_index, block_pars, bandit_type, curr_cond, block_index):
 
         while (not get_keypress) or (core.getTime() - stimulus_pre_without_fixation_onset_time <= stimulus_pre_without_fixation_length_max):
             # present the picture for a maximum of 5 seconds
-            if core.getTime() - stimulus_pre_without_fixation_onset_time > stimulus_pre_without_fixation_length_max: # Haoxue: is core.getTime() an accurate one?
+            if core.getTime() - stimulus_pre_without_fixation_onset_time > stimulus_pre_without_fixation_length_max: 
                 el_tracker.sendMessage('time_out')
                 break
 
@@ -884,7 +955,7 @@ def run_trial(trial_index, block_pars, bandit_type, curr_cond, block_index):
         right_rect.draw()
         left_type.draw()
         right_type.draw()
-        if data['keycode'][-1] == []:
+        if data['keycode'][-1] == [] or data['early_press'][-1] == 1:
             fixation.lineColor = fixation_miss_color
         fixation.draw()
         win.flip()

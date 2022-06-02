@@ -20,8 +20,8 @@ from multiprocessing import dummy
 
 import pylink, os, platform, random, time, sys, yaml
 from EyeLinkCoreGraphicsPsychoPy import EyeLinkCoreGraphicsPsychoPy
-from psychopy import visual, core, event, monitors, gui, __version__
-from PIL import Image  # for preparing the Host backdrop image
+from psychopy import core, event, monitors, gui, __version__
+#from PIL import Image  # for preparing the Host backdrop image
 from string import ascii_letters, digits
 from utils import * 
 import numpy as np
