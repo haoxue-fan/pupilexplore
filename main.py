@@ -8,11 +8,10 @@
 # Some of the functions were adapted from the jspsych version of the task which
 # can be found in cognition.run phelpslab account
 # Written by Haoxue Fan
-# Last updated on May 2022
+# Last updated on June 2022
 
-# This file is run within psychopy 2022.1.3 and pylink downloaded from SR
-# research developer kit on a Windows Computer. The integration with eyelink
-# hasn't been tested on a mac.
+# This file is run using psychopy 2022.1.4 and pylink on a Windows Computer. 
+# The integration with eyelink hasn't been tested on a mac.
 
 # This file should be used with utils.py and main_config.yaml in the same folder
 
@@ -22,7 +21,6 @@ from multiprocessing import dummy
 import pylink, os, platform, random, time, sys, yaml
 from EyeLinkCoreGraphicsPsychoPy import EyeLinkCoreGraphicsPsychoPy
 from psychopy import visual, core, event, monitors, gui, __version__
-#from PIL import Image  # for preparing the Host backdrop image
 from string import ascii_letters, digits
 from utils import * 
 import numpy as np
@@ -47,51 +45,45 @@ logging.console.setLevel(logging.CRITICAL)
 with open('main_config.yaml', 'r') as file:
     exp_config = yaml.safe_load(file)
 
-use_retina = exp_config['use_retina']
-dummy_mode = exp_config['dummy_mode']
-debug_mode = exp_config['debug_mode']
-full_screen = exp_config['full_screen']
-msgColor = exp_config['msg']['msgColor']
-typeColor = exp_config['type']['typeColor']
-typeSize = exp_config['type']['typeSize']
-typeBold = exp_config['type']['typeBold']
-foreground_color = exp_config['calibration']['foreground_color']
-background_color = exp_config['calibration']['background_color']
-cond = exp_config['cond'][0]
-fixSize = exp_config['fixation']['fixSize']
-fixLineWidth = exp_config['fixation']['fixLineWidth']
+use_retina = exp_config['use_retina'] # 1 if the exp runs on a Mac with retina screen
+dummy_mode = exp_config['dummy_mode'] # 1 if the exp runs w/n connecting an eye tracker
+debug_mode = exp_config['debug_mode'] # 1 if in the debug mode (fewer trials, shorter)
+full_screen = exp_config['full_screen'] # 1 if the exp opens a full screen. 0 will be useful when debugging
+msgColor = exp_config['msg']['msgColor'] # color of text msg
+typeColor = exp_config['type']['typeColor'] # color of slot machine type
+typeSize = exp_config['type']['typeSize'] # size of slot machine type
+typeBold = exp_config['type']['typeBold'] # ?
+foreground_color = exp_config['calibration']['foreground_color'] # color of the figures
+background_color = exp_config['calibration']['background_color'] 
+cond = exp_config['cond'][0] # 4 cond. See Gershman (2019) for more info
+fixSize = exp_config['fixation']['fixSize'] # size of fixation
+fixLineWidth = exp_config['fixation']['fixLineWidth'] 
 fixColor = exp_config['fixation']['fixColor']
-rectWidth = exp_config['rect']['rectWidth']
+rectWidth = exp_config['rect']['rectWidth'] # width of slot machine
 rectHeight = exp_config['rect']['rectHeight']
 rectLineWidth = exp_config['rect']['rectLineWidth']
 rectDistCenter = exp_config['rect']['rectDistCenter']
 rectColor = exp_config['rect']['rectColor']
-blockmsgHeight = exp_config['msg']['blockmsgHeight']
-
-fixation_action_color = exp_config['fixation']['fixation_action_color']
-fixation_miss_color = exp_config['fixation']['fixation_miss_color']
-
-sd_mean_mu = exp_config['sd_mean_mu']
-sd_observe = exp_config['sd_observe']
-sd_rw = exp_config['sd_rw']
-labels = exp_config['labels']
-scaling_factor = exp_config['scaling_factor']
-start_coin = exp_config['start_coin']
-
-left_key = exp_config['keys']['left_key']
-right_key = exp_config['keys']['right_key']
-baseline_start_key = exp_config['keys']['baseline_start_key']
-baseline_end_key = exp_config['keys']['baseline_end_key']
-
-before_drift_check_interval = exp_config['before_drift_check_interval']
-
-handness = exp_config['handness']
-glass = exp_config['glass']
-
-practice_flag = exp_config['practice_flag']
-calibrate_flag = exp_config['calibrate_flag']
-baseline_flag = exp_config['baseline_flag']
-experiment_flag = exp_config['experiment_flag']
+blockmsgHeight = exp_config['msg']['blockmsgHeight'] 
+fixation_action_color = exp_config['fixation']['fixation_action_color'] # color of the fixation signaling choice phase
+fixation_miss_color = exp_config['fixation']['fixation_miss_color'] # color of the fixation signaling missing a trial/too fast
+sd_mean_mu = exp_config['sd_mean_mu'] # std of the gaussian distribution that generates slot machines' mean
+sd_observe = exp_config['sd_observe'] # std of the gaussian distribution that generats observations
+sd_rw = exp_config['sd_rw'] # std of the random walk of the mean
+labels = exp_config['labels'] # ?
+scaling_factor = exp_config['scaling_factor'] # scaling factor used to generate final reward outcome
+start_coin = exp_config['start_coin'] # start coin number (to compromise potential loss)
+left_key = exp_config['keys']['left_key'] # keyword for the left slot machine
+right_key = exp_config['keys']['right_key'] # keyword for the right slot machine
+baseline_start_key = exp_config['keys']['baseline_start_key'] # secret key to start baseline measure
+baseline_end_key = exp_config['keys']['baseline_end_key'] # secret key to proceed after baseline measure
+before_drift_check_interval = exp_config['before_drift_check_interval'] # loading screen before drift check
+handness = exp_config['handness'] # default for participant's handness
+glass = exp_config['glass'] # default for participants' glass situation
+practice_flag = exp_config['practice_flag'] # default for including practice
+calibrate_flag = exp_config['calibrate_flag'] # default for including calibration
+baseline_flag = exp_config['baseline_flag'] # default for including baseline
+experiment_flag = exp_config['experiment_flag'] # default for main experiment
 
 # Set up EDF data file name and local data folder
 #
@@ -101,7 +93,6 @@ edf_fname = 'TEST'
 
 # Prompt user to specify an EDF data filename
 # before we open a fullscreen window
-# haoxue: put them as they are here for now, and potentially change it when i understand better what dlg_prompt means
 dlg_title = 'Enter EDF File Name'
 dlg_prompt = 'Please enter a subjectID with 8 or fewer characters\n' + \
              '[letters, numbers, and underscore].'
@@ -109,6 +100,7 @@ start_block_n = 1
 
 # loop until we get a valid filename
 while True:
+    # draw the dialogue window
     dlg = gui.Dlg(dlg_title)
     dlg.addText(dlg_prompt)
     dlg.addField('subjectID:', edf_fname)
@@ -145,6 +137,8 @@ while True:
         print('ERROR: Invalid EDF filename')
     elif len(edf_fname) > 8:
         print('ERROR: EDF filename should not exceed 8 characters')
+    elif edf_fname == 'TEST':
+        print('WARNING: EDF filename is the same as TEST participant. Please change')
     else:
         # save all the varables
         handness = ok_data[1]
@@ -164,11 +158,6 @@ while True:
 if debug_mode:
     n_blocks = exp_config['n_blocks_debug']
     n_trials = exp_config['n_trials_debug']
-else:
-    n_blocks = exp_config['n_blocks']
-    n_trials = exp_config['n_trials']
-
-if debug_mode:
     fixation_length_min = exp_config['trial']['fixation_length_min_debug']
     fixation_length_max = exp_config['trial']['fixation_length_max_debug']
     stimulus_pre_with_fixation_length = exp_config['trial']['stimulus_pre_with_fixation_length_debug']
@@ -177,6 +166,8 @@ if debug_mode:
     baseline_length = exp_config['baseline_length_debug']
     extra_fixation_length = exp_config['trial']['extra_fixation_length_debug']
 else:
+    n_blocks = exp_config['n_blocks']
+    n_trials = exp_config['n_trials']
     fixation_length_min = exp_config['trial']['fixation_length_min']
     fixation_length_max = exp_config['trial']['fixation_length_max']
     stimulus_pre_with_fixation_length = exp_config['trial']['stimulus_pre_with_fixation_length']
@@ -375,34 +366,7 @@ left_rect = visual.ShapeStim(win,
         closeShape = True,
         lineColor = rectColor,
         ori = 0)
-
-left_rect_line1 = visual.Line(win,
-        start = (-rectDistCenter-rectWidth, -rectHeight/2),
-        end = (-rectDistCenter-rectWidth, rectHeight/2+rectLineWidth/2),
-        lineWidth = rectLineWidth,
-        lineColor = rectColor,
-        ori = 0)
-
-left_rect_line2 = visual.Line(win,
-        start = (-rectDistCenter-rectWidth+rectLineWidth/2, rectHeight/2),
-        end = (-rectDistCenter, rectHeight/2),
-        lineWidth = rectLineWidth,
-        lineColor = rectColor,
-        ori = 0)
-        
-left_rect_line3 = visual.Line(win,
-        start = (-rectDistCenter, rectHeight/2),
-        end = (-rectDistCenter, -rectHeight/2),
-        lineWidth = rectLineWidth,
-        lineColor = rectColor,
-        ori = 0)   
-        
-left_rect_line4 = visual.Line(win,
-        start = (-rectDistCenter, -rectHeight/2),
-        end = (-rectDistCenter-rectWidth, -rectHeight/2),
-        lineWidth = rectLineWidth,
-        lineColor = rectColor,
-        ori = 0)   
+  
 # right slot machine
 right_rect = visual.ShapeStim(win,
         vertices  = ((rectDistCenter+rectWidth, -rectHeight/2), (rectDistCenter+rectWidth, rectHeight/2),\
@@ -440,7 +404,6 @@ baseline_end_msg = 'This marks the end of the baseline measurement. Good job!'+\
 '\n\nTtake a rest if you need (close your eyes, blinking, etc).'+\
 '\nPlease wait for the experimenter''s instructions.'
 
-# Step 5: Set up the camera and calibrate the tracker
 
 def run_calibrate():
     """ function to call if we want to run calibration during the task
@@ -448,6 +411,7 @@ def run_calibrate():
 
     task_msg = ''
     if dummy_mode:
+        # if it is dummy mode, skip calibrate
         task_msg = task_msg + '\nNow, press ENTER to start the task'
     else:
         task_msg = task_msg + '\nNow, press ENTER twice to calibrate tracker' 
@@ -464,8 +428,6 @@ def run_calibrate():
 
 def terminate_task(win):
     """ Terminate the task gracefully and retrieve the EDF data file
-
-    file_to_retrieve: The EDF on the Host that we would like to download
     win: the current window used by the experimental script
 
     """
@@ -518,8 +480,7 @@ def run_baseline():
     # arguments: sample_to_file, events_to_file, sample_over_link,
     # event_over_link (1-yes, 0-no)
     try:
-        el_tracker.startRecording(1, 1, 1, 1) # question for Deshawn: should I shut it down between blocks? or actually I do not need?
-        # related q: can i do drift check even with the eye track still collecting?
+        el_tracker.startRecording(1, 1, 1, 1) 
     except RuntimeError as error:
         print("ERROR:", error)
         abort_trial(win)
@@ -527,16 +488,17 @@ def run_baseline():
     # Allocate some time for the tracker to cache some samples
     pylink.pumpDelay(100)
 
-    # introduce them to the fixation page
+    # introduction page before fixation 
     msg = 'Now we are going to measure your baseline pupil size.\nThis will take 5 minutes.'+\
     '\nPlease fixate your eyes on the cross in the center of the screen.\nPlease try to keep your eyes open and reduce blinking.'+\
     '\nWe will let you know when this is done and then you can take a rest.'+\
     '\nPlease avoid moving during this 5 minute or after. Otherwise we will have to abort the experiment.'
 
-    show_msg(win, msg, msgColor, wait_for_keypress= True, key_list=baseline_start_key)
+    show_msg(win, msg, msgColor, wait_for_keypress= True, key_list=baseline_start_key) # use baseline start key as a secret key
 
+    # start timing
     baseline_onset_time = core.getTime()
-    el_tracker.sendMessage('baseline_onset') # Haoxue: add trial number?
+    el_tracker.sendMessage('baseline_onset') 
     while core.getTime() - baseline_onset_time <= baseline_length:
         fixation.draw()
         win.flip()
@@ -546,10 +508,12 @@ def run_baseline():
     show_msg(win, baseline_end_msg, msgColor, wait_for_keypress=True, key_list=baseline_end_key)
     el_tracker.sendMessage('baseline_end')
 
-# Step 6: Run the experimental trials, index all the trials
 def run_block(block_pars, block_index, curr_cond, practice_flag=0):
     """ Helper function specifying the events that will occur in a single trial
-
+    block_pars: mean array and reward array for two slot machines
+    block_index: block number, starts from 1
+    curr_cond: current condition
+    practice_flag: indicate whether it is practice block, default = 1
     """
     
     bandit_type = exp_config['cond'][curr_cond-1]
@@ -563,9 +527,6 @@ def run_block(block_pars, block_index, curr_cond, practice_flag=0):
         
     # get a reference to the currently active EyeLink connection
     el_tracker = pylink.getEYELINK()
-
-    # put the tracker in the offline mode first
-#    el_tracker.setOfflineMode()
 
     # send a "TRIALID" message to mark the start of a trial, see Data
     # Viewer User Manual, "Protocol for EyeLink Data to Viewer Integration"
@@ -594,12 +555,12 @@ def run_block(block_pars, block_index, curr_cond, practice_flag=0):
             '\nTry to keep your eyes open and avoid blinking.'+\
                 '\nPress Space to begin calibration.'+\
                 '\nOn the calibration page, look at the white dot and press Space.'
+        
+    # clean the screen before drawing
     clear_screen(win) 
+    
+    # draw slot machines, type info, and msg
     left_rect.draw()
-#    left_rect_line1.draw()
-#    left_rect_line2.draw()
-#    left_rect_line3.draw()
-#    left_rect_line4.draw()
     right_rect.draw()
     left_type.text = bandit_type[0]
     right_type.text = bandit_type[1]
@@ -625,32 +586,34 @@ def run_block(block_pars, block_index, curr_cond, practice_flag=0):
 
             # drift-check and re-do camera setup if ESCAPE is pressed
             try:
+                # add an extra page before drift check to help participants be prepared
                 before_drift_check_msg = 'Calibration starts in about '+str(before_drift_check_interval)+' seconds...'
     
                 show_msg(win, before_drift_check_msg, msgColor, wait_for_keypress=False, textHeight=blockmsgHeight)
                 el_tracker.sendMessage('before_drift_check')
                 before_drift_check_onset = core.getTime()
+                # set the length of the extra page (uniformly sampled from [before_drift_check_interval-0.5, after_drift_check_interval+0.5])
                 before_drift_check_interval_curr = np.random.uniform(low=before_drift_check_interval-0.5,high=before_drift_check_interval+0.5)
                 while core.getTime() - before_drift_check_onset <= before_drift_check_interval_curr:
                     continue
                 el_tracker.sendMessage('start_drift_check')
                 error = el_tracker.doDriftCorrect(int(scn_width/2.0),
                                                   int(scn_height/2.0), 1, 1)
+                
                 # break following a success drift-check
                 if error is not pylink.ESC_KEY:
                     break
             except:
                 pass
 
-        # put tracker in idle/offline mode before recording
-    el_tracker.setOfflineMode()
+    # put tracker in idle/offline mode before recording
+#     el_tracker.setOfflineMode()
 
     # Start recording
     # arguments: sample_to_file, events_to_file, sample_over_link,
     # event_over_link (1-yes, 0-no)
     try:
         el_tracker.startRecording(1, 1, 1, 1) 
-        # related q: can i do drift check even with the eye track still collecting?
     except RuntimeError as error:
         print("ERROR:", error)
         abort_trial(win)
@@ -693,6 +656,11 @@ def run_practice():
 def run_trial(trial_index, block_pars, bandit_type, curr_cond, block_index):
     """ 
     Function to run each trial
+    trial_index: curren trial number
+    block_pars: mean array and reward array for two slot machines
+    bandit_type: type of two slot machines
+    curr_cond: current condition
+    block_index: current block number
     """
 
     # grab parameters from the function input 
@@ -702,11 +670,10 @@ def run_trial(trial_index, block_pars, bandit_type, curr_cond, block_index):
     left_type.text = bandit_type[0]
     right_type.text = bandit_type[1]
 
-    # generate IFI
+    # generate IFI for each trial from a uniform distribution [fixation_length_min, fixation_length_max]
     fixation_length = np.random.uniform(low=fixation_length_min,high=fixation_length_max)
     
-    # append data before the trial starts
-
+    # append data before the trial starts to avoid unequal length of the dictionary object data
     data['subjectID'].append(edf_fname)
     data['seed'].append(seed)
     data['psychopyVers'].append(__version__)
@@ -743,7 +710,6 @@ def run_trial(trial_index, block_pars, bandit_type, curr_cond, block_index):
     # for the first trial in the first block (of practice and main experiment), 
     # total_coin = start_coin. 
     # Otherwise, initialize total_coin as the total_coin of the last trial
-
     if (block_index == 1 or block_index == -1) and (trial_index == 0):
         data['total_coin'].append(data['start_coin'][0])
     else:
@@ -754,13 +720,13 @@ def run_trial(trial_index, block_pars, bandit_type, curr_cond, block_index):
     else:
         data['correctArm'].append('machine2')    
 
-    # part 0 : talk to eye tracker
+    # send message to eye tracker to signal the start of the trial
     el_tracker.sendMessage('TRIALID %d' % trial_index)
     # record_status_message : show some info on the Host PC
     status_msg = 'TRIAL number %d' % trial_index
     el_tracker.sendCommand("record_status_message '%s'" % status_msg)
 
-    # part 1: fixation (fixation)
+    # DRAW: fixation (fixation)
     fixation.lineColor = fixColor
             
     fixation_onset_time = core.getTime()
@@ -774,8 +740,8 @@ def run_trial(trial_index, block_pars, bandit_type, curr_cond, block_index):
         fixation.draw()
         win.flip()
     
-    # part 2: stimulus presentation (fixation + bandits_type)
-    #         the trial will be terminated if they made a decision in part 2
+    # DRAW: stimulus presentation (fixation + bandits_type)
+    #       the trial will be terminated if they made a decision in part 2
     stimulus_pre_with_fixation_onset_time = core.getTime()
     el_tracker.sendMessage('stimulus_pre_with_fixation_onset') 
     
@@ -792,7 +758,7 @@ def run_trial(trial_index, block_pars, bandit_type, curr_cond, block_index):
         choice = '' # default choice
 
         while (not get_keypress) or (core.getTime() - stimulus_pre_with_fixation_onset_time  <= stimulus_pre_with_fixation_length):
-            # present the picture for a maximum of 5 seconds
+            # present the choise set for a max of stimulus_pre_with_fixation_length
             if core.getTime() - stimulus_pre_with_fixation_onset_time  > stimulus_pre_with_fixation_length:
                 break
 
@@ -807,11 +773,11 @@ def run_trial(trial_index, block_pars, bandit_type, curr_cond, block_index):
                 # check keyboard events
                 for keycode, modifier in event.getKeys(modifiers=True):
                     if keycode == left_key:
-                        # send over a message to log the key press
+                        # send over a message to log the early key press
                         el_tracker.sendMessage('early_key_press left_option_chosen')
                         # get response time in ms, PsychoPy report time in sec
                         RT = int((core.getTime() - stimulus_pre_with_fixation_length )*1000)
-                        # record which option is chosen 
+                        # record which option is chosen & early_press
                         get_keypress = True
                         choice = 'machine1'
                         data['choiceRT'][-1] = RT
@@ -823,7 +789,7 @@ def run_trial(trial_index, block_pars, bandit_type, curr_cond, block_index):
                         data['early_press'][-1] = 1
                         break
                     if keycode == right_key:
-                        # send over a message to log the key press
+                        # send over a message to log the earlly key press
                         el_tracker.sendMessage('early_key_press right_option_chosen')
                         # get response time in ms, PsychoPy report time in sec
                         RT = int((core.getTime() - stimulus_pre_with_fixation_length )*1000)
@@ -854,12 +820,11 @@ def run_trial(trial_index, block_pars, bandit_type, curr_cond, block_index):
                         terminate_task(win)
                         return pylink.ABORT_EXPT
     
-    # part 3: stimulus presentation + choice (bandits_type)
+    # DRAW: stimulus presentation + choice (bandits_type, signaling choice phase)
     #         skip part 3 if part 2 is early press
     stimulus_pre_green_fixation_onset_time = core.getTime()
     el_tracker.sendMessage('stimulus_pre_green_fixation_onset')
-    
-    
+      
     # remove any existing key press
     event.clearEvents() 
     while core.getTime() - stimulus_pre_green_fixation_onset_time <= stimulus_pre_green_fixation_length_max:
@@ -871,13 +836,13 @@ def run_trial(trial_index, block_pars, bandit_type, curr_cond, block_index):
         fixation.draw()
         win.flip()
 
-        # collect choice in part 3
+        # collect choice 
         RT = -1  # keep track of the response time
         get_keypress = False
         choice = '' # default choice
 
         while (not get_keypress) or (core.getTime() - stimulus_pre_green_fixation_onset_time <= stimulus_pre_green_fixation_length_max):
-            # present the picture for a maximum of 5 seconds
+            # present the picture for a maximum of stimulus_pre_green_fixation_length_max
             if core.getTime() - stimulus_pre_green_fixation_onset_time > stimulus_pre_green_fixation_length_max: 
                 el_tracker.sendMessage('time_out')
                 break
@@ -948,7 +913,7 @@ def run_trial(trial_index, block_pars, bandit_type, curr_cond, block_index):
                         terminate_task(win)
                         return pylink.ABORT_EXPT
 
-    # part 4: reward presentation
+    # DRAW: reward presentation or missing trial
     reward_pre_red_fixation_onset_time = core.getTime()
     el_tracker.sendMessage('reward_pre_red_fixation_onset')
     while core.getTime() - reward_pre_red_fixation_onset_time <= reward_pre_red_fixation_length:
@@ -956,6 +921,8 @@ def run_trial(trial_index, block_pars, bandit_type, curr_cond, block_index):
         right_rect.draw()
         left_type.draw()
         right_type.draw()
+        # if no response was recorded or the participant has made an early response
+        # change the fixation to the color of fixation_miss_color
         if data['keycode'][-1] == [] or data['early_press'][-1] == 1:
             fixation.lineColor = fixation_miss_color
         fixation.draw()
@@ -980,12 +947,13 @@ def run_trial(trial_index, block_pars, bandit_type, curr_cond, block_index):
     
 def calculate_bonus(data):
     """ Helper function calculating accumulated bonus multiplied by the scaling factor
-
+    data: the data object
     """
+    # bonus is calculated by the total coin that they have collected 
+    # potential problem may exist for the trials that they have missed
     bonus = np.floor(data['total_coin'][-1] * scaling_factor)
-
-    # Caution: maximum and minimum bonus is now hard coded! May want to include
-    # that in the config file too in the future to increase flexibility
+    
+    # Bonus: min = 1; max = 5 (now hard coded)
     if bonus < 1: 
         return 1
     if bonus > 5:
@@ -995,6 +963,7 @@ def calculate_bonus(data):
 def saveData(data):
     """
     Collects all the data - experiment, behavioral task, stimuli specs and subject info, converts it to a pandas data frame and saves as a csv.
+    data: the data object of the task
     """
     # The directory has been taken care of in the main flow of the experiment. 
     # May want to include this check in future versions to increase robustness
@@ -1004,19 +973,24 @@ def saveData(data):
     taskData = pd.DataFrame(data)
     taskData.to_csv(data_identifier, index = False, encoding = 'utf-8')
 
-block_list = np.random.randint(low=1, high=5, size=n_blocks)
+    
+block_list = np.repeat([1,2,3,4], repeats=n_block/4)
+np.random.shuffle(block_list)
 
-# lets start the task!!!
+# initialize data structure
 data = initializeData()
+
+# set the seed of the current task
 seed = np.random.randint(low=1000000, high=9999999, size=1)
 np.random.seed(seed)
 
-# put tracker in idle/offline mode before recording
+# put tracker in idle/offline mode before recording (i.e., before the whole experiment)
 el_tracker.setOfflineMode()
 
 # run practice
 if practice_flag:
     run_practice()
+    # make sure the fixation is set to default fixColor after practice
     fixation.lineColor = fixColor
 
 # calibrate
@@ -1064,5 +1038,5 @@ show_msg(win, bonus_msg, msgColor, wait_for_keypress=True, key_list=['space'])
 pylink.pumpDelay(100)
 el_tracker.stopRecording()
 
-# Step 7: disconnect, download the EDF file, then terminate the task
+# Last step: disconnect, download the EDF file, then terminate the task
 terminate_task(win)
