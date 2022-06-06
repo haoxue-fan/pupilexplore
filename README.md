@@ -7,3 +7,5 @@ Now contains:
 (1) Experiment code
 (2) Simulation code
 (3) instruction (text + figure)
+
+For any questions, contact Haoxue (haoxue_fan@g.harvard.edu)
