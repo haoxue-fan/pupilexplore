@@ -21,12 +21,9 @@
 # General experiment information
 # ----
 
-experiment_id: stationary
-title: Values and uncertainty jointly drive the attention dynamics in decision making
-code: UncertaintyAttentionRL
-version: '1.6'
-description: This study examines attention in reinforcement learning tasks, examining the hypothesis that option values and uncertainty about the values jointly drive the attention dynamics.
-display_experiment_dialog: True
+title: Pupil Explore
+version: '2.0'
+description: This study examines the relationship between physiological arousal and exploration
 
 
 # ----
@@ -60,7 +57,7 @@ n_blocks_debug: 2
 n_trials_debug: 3
 
 sd_observe: 4
-sd_mean_mu: 10
+sd_mean_mu: 6 #10
 sd_rw: 0
 
 start_coin: 250
@@ -108,7 +105,7 @@ trial:
     fixation_length_max: 2.0
     stimulus_pre_with_fixation_length: 3.0
     stimulus_pre_green_fixation_length_max: 1.5
-    reward_pre_red_fixation_length: 1.5
+    reward_pre_red_fixation_length: 3 #1.5
     extra_fixation_length: 2.0
     fixation_length_min_debug: 1.0 # 5 # 1.0
     fixation_length_max_debug: 1.5 # 5.5 # 1.5
@@ -116,7 +113,7 @@ trial:
     stimulus_pre_green_fixation_length_max_debug: 1.0 
     reward_pre_red_fixation_length_debug: 1.5 #5 #1.5
     extra_fixation_length_debug: 0.5
-baseline_length: 120  # 300
+baseline_length: 300
 baseline_length_debug: 10    
 before_drift_check_interval: 2
 
