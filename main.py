@@ -596,7 +596,7 @@ def run_block(block_pars, block_index, curr_cond, practice_flag=0):
                 before_drift_check_interval_curr = np.random.uniform(low=before_drift_check_interval-0.5,high=before_drift_check_interval+0.5)
                 while core.getTime() - before_drift_check_onset <= before_drift_check_interval_curr:
                     continue
-                el_tracker.sendMessage('start_drift_check')
+                el_tracker.sendMessage('BLOCKID %d start_drift_check' % block_index)
                 error = el_tracker.doDriftCorrect(int(scn_width/2.0),
                                                   int(scn_height/2.0), 1, 1)
                 
@@ -720,15 +720,15 @@ def run_trial(trial_index, block_pars, bandit_type, curr_cond, block_index):
         data['correctArm'].append('machine2')    
 
     # send message to eye tracker to signal the start of the trial
-    el_tracker.sendMessage('BLOCKID %d TRIALID %d' % block_index trial_index)
+    el_tracker.sendMessage('BLOCKID %d TRIALID %d' % (block_index,trial_index))
     # record_status_message : show some info on the Host PC
-    status_msg = 'TRIAL number %d' % trial_index
+    status_msg = 'BLOCK_number %d TRIAL number %d' % (block_index,trial_index)
     el_tracker.sendCommand("record_status_message '%s'" % status_msg)
     # DRAW: fixation (fixation)
     fixation.lineColor = fixColor
             
     fixation_onset_time = core.getTime()
-    el_tracker.sendMessage('fixation_onset') 
+    el_tracker.sendMessage('BLOCKID %d TRIALID %d fixation_onset' % (block_index,trial_index)) 
     
     # first block of the task: increase the fixation length
     if trial_index == 0:
@@ -739,10 +739,10 @@ def run_trial(trial_index, block_pars, bandit_type, curr_cond, block_index):
         win.flip()
     
     # DRAW: stimulus presentation (fixation + bandits_type)
-    #       the trial will be terminated if they made a decision in part 2
+    #       record button press but continue as usual
     stimulus_pre_with_fixation_onset_time = core.getTime()
-    el_tracker.sendMessage('BLOCKID %d TRIALID %d stimulus_pre_with_fixation_onset') 
-    
+    el_tracker.sendMessage('BLOCKID %d TRIALID %d stimulus_pre_with_fixation_onset' % (block_index,trial_index)) 
+
     while core.getTime() - stimulus_pre_with_fixation_onset_time  <= stimulus_pre_with_fixation_length: 
         fixation.draw()
         left_rect.draw()
@@ -769,41 +769,10 @@ def run_trial(trial_index, block_pars, bandit_type, curr_cond, block_index):
             
             if choice == '':
                 # check keyboard events
+                # no matter what they have pressed, send a message to the eye tracker
                 for keycode, modifier in event.getKeys(modifiers=True):
-                    if keycode == left_key:
-                        # send over a message to log the early key press
-                        el_tracker.sendMessage('early_key_press left_option_chosen')
-                        # get response time in ms, PsychoPy report time in sec
-                        RT = int((core.getTime() - stimulus_pre_with_fixation_length )*1000)
-                        # record which option is chosen & early_press
-                        get_keypress = True
-                        choice = 'machine1'
-                        data['choiceRT'][-1] = RT
-                        data['choice'][-1] = choice
-                        data['reward'][-1] = machine1_reward_array[trial_index]
-                        data['keycode'][-1] = keycode
-                        data['correct'][-1] = choice == data['correctArm'][-1]
-                        data['total_coin'][-1] += 0
-                        data['early_press'][-1] = 1
-                        break
-                    if keycode == right_key:
-                        # send over a message to log the earlly key press
-                        el_tracker.sendMessage('early_key_press right_option_chosen')
-                        # get response time in ms, PsychoPy report time in sec
-                        RT = int((core.getTime() - stimulus_pre_with_fixation_length )*1000)
-                        # record which option is chosen
-                        get_keypress = True
-                        choice = 'machine2'
-                        data['choiceRT'][-1] = RT
-                        data['choice'][-1] = choice
-                        data['reward'][-1] = machine2_reward_array[trial_index]
-                        data['keycode'][-1] = keycode
-                        data['correct'][-1] = choice == data['correctArm'][-1]
-                        data['total_coin'][-1] += 0
-                        data['early_press'][-1] = 1
-                        break
-
-                        # Abort a trial if "ESCAPE" is pressed
+                    
+                    # Abort a trial if "ESCAPE" is pressed
                     if keycode == 'escape':
                         el_tracker.sendMessage('trial_skipped_by_user')
                         # clear the screen
@@ -817,11 +786,17 @@ def run_trial(trial_index, block_pars, bandit_type, curr_cond, block_index):
                         el_tracker.sendMessage('terminated_by_user')
                         terminate_task(win)
                         return pylink.ABORT_EXPT
+                    
+                    # send over a message to log the early key press
+                    el_tracker.sendMessage('BLOCKID %d TRIALID %d early_key_press %s' % (block_index,trial_index,keycode)) 
+                    break
+
+
     
     # DRAW: stimulus presentation + choice (bandits_type, signaling choice phase)
     #         skip part 3 if part 2 is early press
     stimulus_pre_green_fixation_onset_time = core.getTime()
-    el_tracker.sendMessage('stimulus_pre_green_fixation_onset')
+    el_tracker.sendMessage('BLOCKID %d TRIALID %d stimulus_pre_green_fixation_onset' % (block_index,trial_index)) 
       
     # remove any existing key press
     event.clearEvents() 
@@ -857,7 +832,7 @@ def run_trial(trial_index, block_pars, bandit_type, curr_cond, block_index):
                 for keycode, modifier in event.getKeys(modifiers=True):
                     if keycode == left_key:
                         # send over a message to log the key press
-                        el_tracker.sendMessage('key_press left_option_chosen')
+                        el_tracker.sendMessage('BLOCKID %d TRIALID %d key_press left_option_chosen' % (block_index,trial_index)) 
                         # get response time in ms, PsychoPy report time in sec
                         RT = int((core.getTime() - stimulus_pre_green_fixation_onset_time )*1000)
                         # record which option is chosen 
@@ -877,7 +852,7 @@ def run_trial(trial_index, block_pars, bandit_type, curr_cond, block_index):
                         break
                     if keycode == right_key:
                         # send over a message to log the key press
-                        el_tracker.sendMessage('key_press right_option_chosen')
+                        el_tracker.sendMessage('BLOCKID %d TRIALID %d key_press right_option_chosen' % (block_index,trial_index)) 
                         # get response time in ms, PsychoPy report time in sec
                         RT = int((core.getTime() - stimulus_pre_green_fixation_onset_time )*1000)
                         # record which option is chosen
@@ -910,10 +885,13 @@ def run_trial(trial_index, block_pars, bandit_type, curr_cond, block_index):
                         el_tracker.sendMessage('terminated_by_user')
                         terminate_task(win)
                         return pylink.ABORT_EXPT
+                    
+                    el_tracker.sendMessage('BLOCKID %d TRIALID %d early_key_press %s' % (block_index,trial_index,keycode)) 
 
     # DRAW: reward presentation or missing trial
     reward_pre_red_fixation_onset_time = core.getTime()
-    el_tracker.sendMessage('reward_pre_red_fixation_onset')
+    el_tracker.sendMessage('BLOCKID %d TRIALID %d reward_pre_red_fixation_onset' % (block_index,trial_index)) 
+                        
     while core.getTime() - reward_pre_red_fixation_onset_time <= reward_pre_red_fixation_length:
         left_rect.draw()
         right_rect.draw()
