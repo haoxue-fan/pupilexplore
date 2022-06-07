@@ -567,7 +567,7 @@ def run_block(block_pars, block_index, curr_cond, practice_flag=0):
     left_type.draw()
     right_type.draw()
     show_msg(win, block_start_msg, msgColor, wait_for_keypress=True, key_list=['space'], textHeight=blockmsgHeight, clear_screen_flag=False)
-    el_tracker.sendMessage('block_start')
+    el_tracker.sendMessage('BLOCKID %d block_start' % block_index)
     
     # we recommend drift-check at the beginning of each trial
     # the doDriftCorrect() function requires target position in integers
@@ -590,7 +590,7 @@ def run_block(block_pars, block_index, curr_cond, practice_flag=0):
                 before_drift_check_msg = 'Calibration starts in about '+str(before_drift_check_interval)+' seconds...'
     
                 show_msg(win, before_drift_check_msg, msgColor, wait_for_keypress=False, textHeight=blockmsgHeight)
-                el_tracker.sendMessage('before_drift_check')
+                el_tracker.sendMessage('BLOCKID %d before_drift_check' % block_index)
                 before_drift_check_onset = core.getTime()
                 # set the length of the extra page (uniformly sampled from [before_drift_check_interval-0.5, after_drift_check_interval+0.5])
                 before_drift_check_interval_curr = np.random.uniform(low=before_drift_check_interval-0.5,high=before_drift_check_interval+0.5)
@@ -627,8 +627,7 @@ def run_block(block_pars, block_index, curr_cond, practice_flag=0):
     # end of the block screen
     clear_screen(win) 
     show_msg(win, block_end_msg, msgColor, wait_for_keypress=True, key_list=['space'])
-    el_tracker.sendMessage('block_end')
-
+    el_tracker.sendMessage('BLOCKID %d block_end' % block_index)
     # save choice Data at the block end
     saveData(data)
 
@@ -721,11 +720,10 @@ def run_trial(trial_index, block_pars, bandit_type, curr_cond, block_index):
         data['correctArm'].append('machine2')    
 
     # send message to eye tracker to signal the start of the trial
-    el_tracker.sendMessage('TRIALID %d' % trial_index)
+    el_tracker.sendMessage('BLOCKID %d TRIALID %d' % block_index trial_index)
     # record_status_message : show some info on the Host PC
     status_msg = 'TRIAL number %d' % trial_index
     el_tracker.sendCommand("record_status_message '%s'" % status_msg)
-
     # DRAW: fixation (fixation)
     fixation.lineColor = fixColor
             
@@ -743,7 +741,7 @@ def run_trial(trial_index, block_pars, bandit_type, curr_cond, block_index):
     # DRAW: stimulus presentation (fixation + bandits_type)
     #       the trial will be terminated if they made a decision in part 2
     stimulus_pre_with_fixation_onset_time = core.getTime()
-    el_tracker.sendMessage('stimulus_pre_with_fixation_onset') 
+    el_tracker.sendMessage('BLOCKID %d TRIALID %d stimulus_pre_with_fixation_onset') 
     
     while core.getTime() - stimulus_pre_with_fixation_onset_time  <= stimulus_pre_with_fixation_length: 
         fixation.draw()
@@ -974,7 +972,7 @@ def saveData(data):
     taskData.to_csv(data_identifier, index = False, encoding = 'utf-8')
 
     
-block_list = np.repeat([1,2,3,4], repeats=n_block/4)
+block_list = np.repeat([1,2,3,4], repeats=n_blocks/4)
 np.random.shuffle(block_list)
 
 # initialize data structure
