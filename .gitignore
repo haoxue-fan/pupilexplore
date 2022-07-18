@@ -1,0 +1,10 @@
+# Creating a gitignore to show which files should not be tracked
+
+# Cache
+*__pycache__/
+
+# Jupyter Notebook
+*.ipynb_checkpoints
+
+# Mac DS Files:
+.DS_Store
