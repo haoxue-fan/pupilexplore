@@ -8,4 +8,9 @@ Now contains:
 (2) Simulation code
 (3) instruction (text + figure)
 
+## Running Participants
+--------------
+
+The recommended method for running participants is to run `main.py` through psychopy (only version XXX has been tested).
+
 For any questions, contact Haoxue (haoxue_fan@g.harvard.edu)
