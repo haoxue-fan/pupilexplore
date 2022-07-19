@@ -1,4 +1,0 @@
-subjectID,psychopyVers,codeVers,sd_observe,sd_mean_mu,sd_rw,block,trial,scaling_factor,choiceRT,IFI,correct,correctArm,choice,keycode,cond,mu1,mu2,reward1,reward2,reward,start_coin,total_coin
-TEST,2022.1.3,1,4,10,0,-1,1,0.01,372,1.1701113556496938,False,machine2,machine1,j,1,-12,3,-15,3,-15,250,235
-TEST,2022.1.3,1,4,10,0,-1,2,0.01,[],1.1842739135867346,[],machine2,[],[],1,-12,3,-6,3,[],250,250
-TEST,2022.1.3,1,4,10,0,-1,3,0.01,[],1.0751176716898214,[],machine2,[],[],1,-12,3,-14,3,[],250,250
