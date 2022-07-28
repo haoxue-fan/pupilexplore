@@ -194,7 +194,7 @@ if not os.path.exists(session_folder):
     os.makedirs(session_folder)
 # name the behavioral data file
 data_identifier = os.path.join(session_folder, 'taskData' + session_identifier + '.csv')
-
+bonus_identifier = os.path.join(session_folder, 'bonus' + session_identifier + '.txt')
 # Connect to the EyeLink Host PC
 #
 # The Host IP address, by default, is "100.1.1.1".
@@ -401,7 +401,7 @@ block_end_msg = 'This marks the end of this round.'+\
 
 baseline_end_msg = 'This marks the end of the baseline measurement. Good job!'+\
 '\n\nDo NOT move your head and Please keep your chin on the chinrest.'+\
-'\n\nTtake a rest if you need (close your eyes, blinking, etc).'+\
+'\n\nTake a rest if you need (close your eyes, blinking, etc).'+\
 '\nPlease wait for the experimenter''s instructions.'
 
 
@@ -429,7 +429,6 @@ def run_calibrate():
 def terminate_task(win):
     """ Terminate the task gracefully and retrieve the EDF data file
     win: the current window used by the experimental script
-
     """
 
     el_tracker = pylink.getEYELINK()
@@ -635,7 +634,6 @@ def run_practice():
     """ Helper function to run practice block 
         In the practice block, there is always two arms of different types and
         different mean
-
     """
     curr_label_logic = [x == labels[1] for x in exp_config['cond'][0]]
     
@@ -758,6 +756,9 @@ def run_trial(trial_index, block_pars, bandit_type, curr_cond, block_index):
         while (not get_keypress) or (core.getTime() - stimulus_pre_with_fixation_onset_time  <= stimulus_pre_with_fixation_length):
             # present the choise set for a max of stimulus_pre_with_fixation_length
             if core.getTime() - stimulus_pre_with_fixation_onset_time  > stimulus_pre_with_fixation_length:
+
+#                win.getMovieFrame()
+#                win.saveMovieFrames('stimulus_pre_with_white_fixation.png')
                 break
 
             # abort the current trial if the tracker is no longer recording
@@ -789,6 +790,7 @@ def run_trial(trial_index, block_pars, bandit_type, curr_cond, block_index):
                     
                     # send over a message to log the early key press
                     el_tracker.sendMessage('BLOCKID %d TRIALID %d early_key_press %s' % (block_index,trial_index,keycode)) 
+                    data['early_press'][-1] = 1
                     break
 
 
@@ -817,6 +819,8 @@ def run_trial(trial_index, block_pars, bandit_type, curr_cond, block_index):
         while (not get_keypress) or (core.getTime() - stimulus_pre_green_fixation_onset_time <= stimulus_pre_green_fixation_length_max):
             # present the picture for a maximum of stimulus_pre_green_fixation_length_max
             if core.getTime() - stimulus_pre_green_fixation_onset_time > stimulus_pre_green_fixation_length_max: 
+#                win.getMovieFrame()
+#                win.saveMovieFrames('stimulus_pre_with_green_fixation.png')
                 el_tracker.sendMessage('time_out')
                 break
 
@@ -886,8 +890,10 @@ def run_trial(trial_index, block_pars, bandit_type, curr_cond, block_index):
                         terminate_task(win)
                         return pylink.ABORT_EXPT
                     
-                    el_tracker.sendMessage('BLOCKID %d TRIALID %d early_key_press %s' % (block_index,trial_index,keycode)) 
 
+                    el_tracker.sendMessage('BLOCKID %d TRIALID %d early_key_press %s' % (block_index,trial_index,keycode)) 
+                    data['early_press'][-1] = 1
+                    
     # DRAW: reward presentation or missing trial
     reward_pre_red_fixation_onset_time = core.getTime()
     el_tracker.sendMessage('BLOCKID %d TRIALID %d reward_pre_red_fixation_onset' % (block_index,trial_index)) 
@@ -899,11 +905,13 @@ def run_trial(trial_index, block_pars, bandit_type, curr_cond, block_index):
         right_type.draw()
         # if no response was recorded or the participant has made an early response
         # change the fixation to the color of fixation_miss_color
-        if data['keycode'][-1] == [] or data['early_press'][-1] == 1:
+        if data['keycode'][-1] == []:
             fixation.lineColor = fixation_miss_color
         fixation.draw()
         win.flip()
-    
+     
+#    win.getMovieFrame()
+#    win.saveMovieFrames('stimulus_pre_with_red_fixation.png')
     # clear the screen
     clear_screen(win)
     el_tracker.sendMessage('blank_screen')
@@ -931,9 +939,12 @@ def calculate_bonus(data):
     
     # Bonus: min = 1; max = 5 (now hard coded)
     if bonus < 1: 
-        return 1
+        bonus = 1
     if bonus > 5:
-        return 5
+        bonus = 5
+    with open(bonus_identifier, 'w') as output:
+        output.write('bonus: '+str(bonus))
+
     return bonus
 
 def saveData(data):
