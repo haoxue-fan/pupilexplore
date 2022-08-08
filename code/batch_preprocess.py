@@ -26,7 +26,7 @@ idx_max = 9999 # set this number to restrict analysis to a subset of all data (9
 part_dirs = sorted(glob('../../Real_Subject_Data/*/'))
 task_dirs = sorted(glob('../../Belief_Update_Process/*'))
 
-overwrite = True
+overwrite = False
 idx = 0
 baseline_flag = True
 
@@ -43,9 +43,10 @@ for data_dir in part_dirs:
             pupil_data.filter_phase(overwrite)
             pupil_data.process_valid_samples(overwrite)
             # read in task df using subjectid stored in pypil object
-            task_df = pd.read_csv(list(compress(task_dirs, \
-                [pupil_data.subjectid in x for x in task_dirs]))[0])
-            pupil_data.choice_msgpupil_merge(task_df)
+            # Haoxue Aug: DO NOT do it here - merging is not necessary yet
+            # task_df = pd.read_csv(list(compress(task_dirs, \
+            #     [pupil_data.subjectid in x for x in task_dirs]))[0])
+            # pupil_data.choice_msgpupil_merge(task_df)
             if baseline_flag:
                 pupil_data.merged_data = pupil_data.baseline_pupil_data.copy(deep=True)
                 pupil_data.filter_phase(overwrite, baseline_flag)

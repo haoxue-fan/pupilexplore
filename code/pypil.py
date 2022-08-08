@@ -36,12 +36,18 @@ class pypil(object):
         self.event_list = ['fixation_onset','stimulus_pre_with_fixation_onset','stimulus_pre_green_fixation_onset',\
             'early_key_press','key_press','reward_pre_red_fixation_onset',\
                 'block_start','before_drift_check','start_drift_check','blank_screen'] 
+        self.relevant_list = ['fixation_onset','stimulus_pre_with_fixation_onset','stimulus_pre_green_fixation_onset',\
+            'early_key_press','key_press','reward_pre_red_fixation_onset']
         self.bad_strings = ['SFIX', 'SSACC', 'EFIX', 'ESACC', 'SBLINK', 'EBLINK', 'END', 'INPUT',
                        'START', 'PRESCALER', 'VPRESCALER', 'PUPIL', 'EVENTS', 'SAMPLES'] # TODO: where is the blank screen, and how about drift check? 
         self.start_baseline_str = 'baseline_onset'
         self.end_baseline_str = 'baseline_end'
         self.start_blocks_str = 'BLOCKID 1'
         self.end_blocks_str = 'BLOCKID 16'
+        self.redundant_col = ['index','dots', 'time_step', 'inter_pupil', 'valid_time', \
+            'smoothed_interp_pupil']
+        self.redundant_col_first_row = ['x','y','pupil','event','is_valid','smoothed_interp_pupil_corrected','inter_pupil_corrected']
+            
 
     def __eq__(self, other) : 
             return (self.__dict__ == other.__dict__).all()
@@ -162,23 +168,24 @@ class pypil(object):
         self.baseline_pupil_data.reset_index(inplace=True)
         self.baseline_pupil_data.to_csv(os.path.join(self.data_dir, '{}_baseline_pupil_RAW_downsample.csv'.format(self.subjectid)), index=False)
 
-    def interpolate(self):
-        """
-        interpolate the data to make up for missing values
-        """
-        # Interpolation
-        self.inter_pupil = self.merged_data.pupil.copy(deep=True)
-        self.inter_pupil.rename('inter_pupil', inplace=True)
-        self.inter_pupil.replace(0, np.NaN, inplace=True)
-        self.merged_data = self.merged_data.join(self.inter_pupil)
-        if self.merged_data.inter_pupil.isna().mean() > .3:
-            self.include_pupil = False
-        else:
-            self.merged_data.inter_pupil.interpolate(inplace=True)
+    # def interpolate(self):
+    #     """
+    #     interpolate the data to make up for missing values
+    #     """
+    #     # Interpolation
+    #     self.inter_pupil = self.merged_data.pupil.copy(deep=True)
+    #     self.inter_pupil.rename('inter_pupil', inplace=True)
+    #     self.inter_pupil.replace(0, np.NaN, inplace=True)
+    #     self.merged_data = self.merged_data.join(self.inter_pupil)
+    #     if self.merged_data.inter_pupil.isna().mean() > .3:
+    #         self.include_pupil = False
+    #     else:
+    #         self.merged_data.inter_pupil.interpolate(inplace=True)
 
     def read_data(self):
         """
         read in cleaned message, pupil and merged data
+        Haoxue Aug: in theory we do not need this part since it should be taken care of in the wrapper prepare_data()
         """
         try:
             self.message_data = pd.read_csv(os.path.join(self.data_dir, '{}_message_RAW.csv'.format(self.subjectid)))
@@ -191,18 +198,7 @@ class pypil(object):
             self.baseline_pupil_data = pd.read_csv(os.path.join(self.data_dir, '{}_baseline_pupil_RAW.csv'.format(self.subjectid)))
         except:
             raise Exception('There is no baseline_pupil_data in the current folder. Please double check and/or rerun the pipeline.')
-    
-
-    def read_data_ready2use(self):
-        '''
-        read in merged pupil and task data that is ready to use downstream in the exp
-        '''
-        try:
-            self.merged_data_task = pd.read_csv(os.path.join(self.data_dir, '{}_merged_pupil_task.csv'.format(self.subjectid)))
-        except:
-            raise Exception('There is no ready2use data (merged_pupil_task.csv) in the current folder. Please double check and/or rerun the pipeline.')
-        
-
+           
     def mess_pupil_merge2(self):
         '''
         merge pupil and message data
@@ -258,28 +254,6 @@ class pypil(object):
         self.indclude_pupil = True
         #self.merged_data.corrected_pupil = self.merged_data.inter_pupil / self.merged_data.inter_pupil.mean()
         self.merged_data.to_csv(os.path.join(self.data_dir, '{}_merged_pupil_RAW.csv'.format(self.subjectid)), index=False)
-
-    def choice_msgpupil_merge(self, task_df=None, overwrite=None):
-        '''
-        Merge task and choice data with pupil and msg (pupil and msg should be merged in mess_pupil_merge2)
-        Run it after preprocess, filter and valid has all been done
-        Only run it when task_df is passed in
-        '''
-
-        # Haoxue: this function is NOT a part of the preprocess/filter/process valid sample routine. Is only called after the pupil data has finished processing
-        if overwrite:
-            self.overwrite = overwrite
-
-        if (not os.path.exists(os.path.join(self.data_dir, '{}_merged_pupil_task.csv'.format(self.subjectid)))) or self.overwrite:
-
-            task_df.rename(columns={'SubjectID': 'ID', 'Block': 'block', 'Trial': 'trial'}, inplace=True)
-            task_df['trial'] = task_df['trial'] - 1
-            self.merged_data_task = pd.merge(self.merged_data, task_df, how='left')
-            self.merged_data_task.to_csv(os.path.join(self.data_dir, '{}_merged_pupil_task.csv'.format(self.subjectid)), index=False)
-        
-        else:
-            self.merged_data_task = pd.read_csv(os.path.join(self.data_dir, '{}_merged_pupil_task.csv'.format(self.subjectid)))
-
 
     def prepare_phase(self, overwrite=False):
         '''
@@ -699,144 +673,6 @@ class pypil(object):
                 # Reject samples too near a gap
                 self.merged_data.is_valid = self.merged_data.is_valid & ~near_gap
 
-    def _mad_deviation_filter(self):
-        '''
-        Filters pupil diameter timeseries based on the deviation fromt a smooth trendline.
-
-        Currently does not support upsampling. Interpolation will occur at the same time scale
-        of the self.merged_data.time pandas.Series.
-        '''
-        # Haoxue: want some explanation on why this does not support upsampling / confirm whether my understanding is correct
-        # [isValid_Running,filtData] = madDeviationFilter(t_ms,dia,isValid_In,filtSettings)
-
-        # % madDeviationFilter filters a diameter timeseries based on the deviation
-        # % from a smooth trendline.
-        # %
-        # %--------------------------------------------------------------------------
-
-        # Get Relevant Settings
-        n_passes = self.filter_settings['residuals_filter_passes']
-
-        # If an when I incorporate upsampling this is were it will occur.
-        # time_interp = np.arange(self.merged_data.time.iloc[0], self.merged_data.time.iloc[-1],
-        #                         (1000 / self.filter_settings['residuals_filter_interpFs']))
-
-        assert (self.merged_data.is_valid.sum() > 3  # Arbitrary got from Kret & Sjak-Shie (2018)
-                ), "There needs to be greater than 3 valid time points to interpolate."
-
-        self.smoothed_per_pass = pd.DataFrame(columns=['{}{}'.format(y, x) for x in range(n_passes)
-                                                       for y in ['resid', 'smooth', 'is_valid']],
-                                              index=self.merged_data.time.index)
-        is_valid_loop = self.merged_data.is_valid
-        
-        is_done = False
-        for pass_ind in range(n_passes):
-
-            # If the last filter did not have any effect, neither will any of the others
-            if is_done:
-                break
-
-            # Tracking Valid trials 
-            # Haoxue: shallow copy, so is_valid_start is changed EVERY TIME?!
-            is_valid_start = is_valid_loop
-
-            # Calculate and Smooth baseline and deviation
-            self._deviation_calc(pass_ind)
-
-            # Calculate MAD stats
-            _, thresh = self._mad_calc(self.smoothed_per_pass['resid{}'.format(pass_ind)])
-
-            # Remove outliers and remove isolated rejection filter
-            is_valid_loop = (self.smoothed_per_pass['resid{}'.format(pass_ind)] <= thresh) & self.merged_data.is_valid
-            self.valid_time = self.merged_data.time[is_valid_loop]
-            # this is the function where the valid index get to be changed
-            # (need to check again whether this is the case in the matlab dataset)
-            self._remove_loners()
-            is_valid_loop = self.merged_data.is_valid
-
-            # Log loop vars
-            self.smoothed_per_pass['is_valid{}'.format(pass_ind)] = is_valid_loop
-
-            if all(is_valid_start == is_valid_loop):
-                print('all equal! ',pass_ind)
-            # Determine if this filter step had an effect
-            if pass_ind and all(is_valid_start == is_valid_loop):  # Can't be first pass e.g., pass_ind = 0
-                # Copy the current results to the other columns
-                for ind in range(pass_ind + 1, n_passes):
-                    self.smoothed_per_pass['is_valid{}'.format(ind)] = self.smoothed_per_pass['is_valid{}'.format(ind - 1)]
-                    self.smoothed_per_pass['smooth{}'.format(ind)] = self.smoothed_per_pass['smooth{}'.format(ind - 1)]
-                    self.smoothed_per_pass['resid{}'.format(ind)] = self.smoothed_per_pass['resid{}'.format(ind - 1)]
-
-                is_done = True
-
-    def _mad_deviation_filter_deepcopy(self):
-        '''
-        Almost identical to _mad_deviation_filter, with an additional change of incorporating deepcopy 
-        Filters pupil diameter timeseries based on the deviation fromt a smooth trendline.
-
-        Currently does not support upsampling. Interpolation will occur at the same time scale
-        of the self.merged_data.time pandas.Series.
-        '''
-        # [isValid_Running,filtData] = madDeviationFilter(t_ms,dia,isValid_In,filtSettings)
-
-        # % madDeviationFilter filters a diameter timeseries based on the deviation
-        # % from a smooth trendline.
-        # %
-        # %--------------------------------------------------------------------------
-
-        # Get Relevant Settings
-        n_passes = self.filter_settings['residuals_filter_passes']
-
-        # If an when I incorporate upsampling this is were it will occur.
-        # time_interp = np.arange(self.merged_data.time.iloc[0], self.merged_data.time.iloc[-1],
-        #                         (1000 / self.filter_settings['residuals_filter_interpFs']))
-
-        assert (self.merged_data.is_valid.sum() > 3  # Arbitrary got from Kret & Sjak-Shie (2018)
-                ), "There needs to be greater than 3 valid time points to interpolate."
-
-        self.smoothed_per_pass = pd.DataFrame(columns=['{}{}'.format(y, x) for x in range(n_passes)
-                                                       for y in ['resid', 'smooth', 'is_valid']],
-                                              index=self.merged_data.time.index)
-        is_valid_loop = self.merged_data.is_valid.copy(deep=True)
-        
-        is_done = False
-        for pass_ind in range(n_passes):
-
-            # If the last filter did not have any effect, neither will any of the others
-            if is_done:
-                break
-
-            # Tracking Valid trials (get iterated too)
-            is_valid_start = is_valid_loop.copy(deep=True)
-
-            # Calculate and Smooth baseline and deviation
-            self._deviation_calc(pass_ind)
-
-            # Calculate MAD stats
-            _, thresh = self._mad_calc(self.smoothed_per_pass['resid{}'.format(pass_ind)])
-
-            # Remove outliers and remove isolated rejection filter
-            is_valid_loop = (self.smoothed_per_pass['resid{}'.format(pass_ind)] <= thresh) & self.merged_data.is_valid
-            self.valid_time = self.merged_data.time[is_valid_loop]
-            # this is the function where the valid index get to be changed
-            # (need to check again whether this is the case in the matlab dataset)
-            self._remove_loners()
-            # this may be unnecessary?
-            is_valid_loop = self.merged_data.is_valid.copy(deep=True)
-
-            # Log loop vars
-            self.smoothed_per_pass['is_valid{}'.format(pass_ind)] = is_valid_loop
-
-            # Determine if this filter step had an effect
-            if pass_ind and all(is_valid_start == is_valid_loop):  # Can't be first pass e.g., pass_ind = 0
-                print('pass_ind:', pass_ind)
-                # Copy the current results to the other columns
-                for ind in range(pass_ind + 1, n_passes):
-                    self.smoothed_per_pass['is_valid{}'.format(ind)] = self.smoothed_per_pass['is_valid{}'.format(ind - 1)]
-                    self.smoothed_per_pass['smooth{}'.format(ind)] = self.smoothed_per_pass['smooth{}'.format(ind - 1)]
-                    self.smoothed_per_pass['resid{}'.format(ind)] = self.smoothed_per_pass['resid{}'.format(ind - 1)]
-
-                is_done = True
     def _mad_deviation_filter2(self):
         '''
         Test out the part that differs
@@ -991,5 +827,200 @@ class pypil(object):
             self.merged_data.to_csv(os.path.join(self.data_dir, '{}_merged_pupil_baseline.csv'.format(self.subjectid)), index=False) # technically speaking there is no real merge happening..
         else:
             self.merged_data.to_csv(os.path.join(self.data_dir, '{}_merged_pupil.csv'.format(self.subjectid)), index=False)
-            
+
+# functions below are advanced preprocessing and should be run after prepare_phase - filter - interp_smooth
+    def read_merged_and_task(self, task_df_name=None, overwrite=False):
+        '''
+        read preprocessed pupil data and task df (separately)
+        also read in merged_pupil_first_row if it exists
+        '''
+        if overwrite:
+            self.overwrite = overwrite
+        # read in merged pupil first if exists
+        if (not os.path.exists(os.path.join(self.data_dir, '{}_merged_pupil_first_row_AFTER.csv'.format(self.subjectid))) or self.overwrite):
+            if overwrite:
+                print('{} [merged pupil first row] data was OVERWRITTEN'.format(self.subjectid))
+            else:
+                print('{} [merged pupil first row] data was CREATED'.format(self.subjectid))
+        else:
+            self.merged_data_first_row = pd.read_csv(os.path.exists(os.path.join(self.data_dir, '{}_merged_pupil_first_row_AFTER.csv'.format(self.subjectid))))
         
+        # read in merged data
+        try:
+            self.merged_data = pd.read_csv(os.path.join(self.data_dir, '{}_merged_pupil.csv'.format(self.subjectid)))
+        except:
+            raise Exception('There is no merged pupil file.')
+
+        # read in task df
+        try:
+            self.task_df = pd.read_csv(task_df_name)
+            self.task_df.rename(columns={'SubjectID': 'ID', 'Block': 'block', 'Trial': 'trial'}, inplace=True)
+            # change task_df trial to start counting from 1 instead of 0
+            self.task_df['trial'] = self.task_df['trial'] - 1
+        except Exception:
+            raise Exception('There is no task df matching the name specified.')
+
+    def add_first_row_pupil(self):
+        '''
+        use merged_pupil.csv to generate a datafile with one row for each trial
+        the function is called after irrelevant columns and events are removed
+        '''
+        if (not 'identifier' in self.merged_data.columns) or (not 'identifier' in self.task_df.columns):
+            self.add_identifier()
+        self.merged_data_first_row = self.merged_data.groupby(['identifier']).head(1).\
+            merge(self.task_df, on=['ID','block','trial','identifier'], how='outer')
+        self.drop_redundant_column(for_first_row=True)
+            
+    def remove_irrelevant_events(self):
+        '''
+        remove pupil data related to undesirable events (stored in self.irrelevant_events)
+        '''
+        self.merged_data = self.merged_data.loc[self.merged_data.event.isin(self.relevant_list),:]
+ 
+    def drop_redundant_column(self, for_first_row=False):
+        '''
+        drop redundant columns from merged data as defined in self.redundant_col
+        '''
+        if not for_first_row:
+            self.merged_data.drop(columns=self.redundant_col, inplace=True)
+        else:
+            self.merged_data_first_row.drop(columns=self.redundant_col_first_row, inplace=True)
+
+    def add_identifier(self):
+        '''
+        add unique subjectID-block-trial identifier to both merged data and task to facilitate future mapping
+        before adding identifier, make sure the data type are the same across two df
+        '''
+        self.merged_data['ID'] = self.merged_data['ID'].astype(str)
+        self.merged_data['block'] = self.merged_data['block'].astype(float)
+        self.merged_data['trial'] = self.merged_data['trial'].astype(float)
+        self.task_df['ID'] = self.task_df['ID'].astype(str)
+        self.task_df['block'] = self.task_df['block'].astype(float)
+        self.task_df['trial'] = self.task_df['trial'].astype(float)
+
+        if not 'identifier' in self.merged_data.columns:
+            self.merged_data['identifier'] = self.merged_data['ID'] + self.merged_data['block'].astype(str) + self.merged_data['trial'].astype(str)
+
+        if not 'identifier' in self.task_df.columns:
+            self.task_df['identifier'] = self.task_df['ID'] + self.task_df['block'].astype(str) + self.task_df['trial'].astype(str)
+
+    def add_timestamp(self):
+        '''
+        calculate timestamp based on column event for each trial
+        '''
+        def df_add_timestamp(df):
+            first_row = df.groupby('event').head(1)
+            list_time_step = [df.time - x for x in first_row.time]
+            for i in range(len(list_time_step)):
+                col_name = 'timestamp_locked_at_' + first_row.event.iloc[i]
+                df.loc[:,col_name] = list_time_step[i]
+            return df
+        if not 'identifier' in self.merged_data.columns:
+            self.add_identifier()
+        self.merged_data = self.merged_data.groupby('identifier').apply(df_add_timestamp) 
+       
+    def avg_within_timewindow(self, \
+        timestamp_col='timestamp_locked_at_stimulus_pre_with_fixation_onset',\
+        y_col='remove_baseline_smoothed_interp_pupil_corrected',\
+        timestamp_range=[-1000, 0],\
+        new_x_col='avg'):
+        '''
+        calculate y_col avg within timestamp_range for timestamp_col
+        '''
+
+        def df_avg_within_timewindow(df, \
+        timestamp_col='timestamp_locked_at_stimulus_pre_with_fixation_onset',\
+        y_col='remove_baseline_smoothed_interp_pupil_corrected',\
+        timestamp_range=[-1000, 0]):
+            '''
+            function inside apply to calculate avg within a timewindow
+            '''
+            output = df.loc[(df[timestamp_col] >= timestamp_range[0]) & (df[timestamp_col] <= timestamp_range[1]), y_col].mean()
+            return output 
+
+        if not 'identifier' in self.merged_data.columns:
+            self.add_identifier()
+        output = self.merged_data.groupby(['identifier']).\
+            apply(df_avg_within_timewindow, \
+                timestamp_col=timestamp_col, y_col=y_col, \
+                    timestamp_range=timestamp_range)
+        output = output.reset_index().rename(columns={0:new_x_col})
+        self.merged_data_first_row = self.merged_data_first_row.merge(output, on='identifier')
+
+    def percent_miss(self, new_x_col='perc_miss'):
+        '''
+        calculate the percent of missing data in each trial based on whether pupil == 0
+        '''    
+        def df_percent_miss(df):
+            return (df.pupil == 0).mean()
+        if not 'identifier' in self.merged_data.columns:
+            self.add_identifier()
+        output = self.merged_data.groupby('identifier').apply(df_percent_miss)
+        output = output.reset_index().rename(columns={0:new_x_col})
+        self.merged_data_first_row = self.merged_data_first_row.merge(output, on='identifier')
+
+    def baseline_correct(self, baseline_col='trial_baseline', \
+        pupil_col='smoothed_interp_pupil_corrected',\
+        new_x_col='remove_baseline_smoothed_interp_pupil_corrected'):
+        '''
+        use trial baseline (saved in merged_data_first_trial) to correct activities within a trial (merged_data)
+        the current function is a simple one
+        may add other functions in the future if needed
+        '''
+        if (not 'identifier' in self.merged_data.columns) or (not 'identifier' in self.merged_data_first_row.columns):
+            self.add_identifier()
+        baseline_df = self.merged_data_first_row[['identifier',baseline_col]]
+        self.merged_data = self.merged_data.merge(baseline_df, how='left', on='identifier')
+        self.merged_data[new_x_col] = self.merged_data[pupil_col] - self.merged_data[baseline_col]
+        self.merged_data.drop(columns=baseline_col, inplace=True)
+
+    def write_merged_and_task(self, overwrite=False):
+        '''
+        write preprocessed merged_data, merged_data_first_row, and task_df
+        the write of task df maybe a little redundant - majority changes are column names and trial calculation
+        keep it for now in case it is needed in the future
+        '''
+        if overwrite:
+            self.overwrite = overwrite
+        
+
+        if (not all([os.path.exists(os.path.join(self.data_dir, '{}_merged_pupil_first_row_AFTER.csv'.format(self.subjectid))),\
+            os.path.exists(os.path.join(self.data_dir, '{}_merged_pupil_long_AFTER.csv'.format(self.subjectid))),\
+                os.path.exists(os.path.join(self.data_dir, '{}_task_AFTER.csv'.format(self.subjectid)))])) or self.overwrite:
+
+            self.merged_data.to_csv(os.path.join(self.data_dir, '{}_merged_pupil_long_AFTER.csv'.format(self.subjectid)))
+            self.merged_data_first_row.to_csv(os.path.join(self.data_dir, '{}_merged_pupil_first_row_AFTER.csv'.format(self.subjectid)))
+            self.task_df.to_csv(os.path.join(self.data_dir, '{}_task_AFTER.csv'.format(self.subjectid)))
+
+    def read_data_ready2use(self):
+        '''
+        read in merged pupil and task data that is ready to use downstream in the exp
+        Haoxue Aug 2022: this function could be deprecated because we do not plan to merge pupil with task.
+        '''
+        try:
+            self.merged_data_task = pd.read_csv(os.path.join(self.data_dir, '{}_merged_pupil_task.csv'.format(self.subjectid)))
+        except:
+            raise Exception('There is no ready2use data (merged_pupil_task.csv) in the current folder. Please double check and/or rerun the pipeline.')
+ 
+    def choice_msgpupil_merge(self, task_df=None, overwrite=None):
+        '''
+        Merge task and choice data with pupil and msg (pupil and msg should be merged in mess_pupil_merge2)
+        Run it after preprocess, filter and valid has all been done
+        Only run it when task_df is passed in
+        '''
+
+        # Haoxue: this function is NOT a part of the preprocess/filter/process valid sample routine. Is only called after the pupil data has finished processing
+        if overwrite:
+            self.overwrite = overwrite
+
+        if (not os.path.exists(os.path.join(self.data_dir, '{}_merged_pupil_task.csv'.format(self.subjectid)))) or self.overwrite:
+
+            task_df.rename(columns={'SubjectID': 'ID', 'Block': 'block', 'Trial': 'trial'}, inplace=True)
+            task_df['trial'] = task_df['trial'] - 1
+            self.merged_data_task = pd.merge(self.merged_data, task_df, how='left')
+            self.merged_data_task.to_csv(os.path.join(self.data_dir, '{}_merged_pupil_task.csv'.format(self.subjectid)), index=False)
+        
+        else:
+            self.merged_data_task = pd.read_csv(os.path.join(self.data_dir, '{}_merged_pupil_task.csv'.format(self.subjectid)))
+          
+
