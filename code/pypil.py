@@ -154,7 +154,7 @@ class pypil(object):
         self.pupil_data = self.pupil_data.loc[pd.RangeIndex(
             self.pupil_data.index[0], self.pupil_data.index[-1], step=int(self.eyelinkrate / self.sf))]
         self.pupil_data.reset_index(inplace=True)
-        self.merged_data.to_csv(os.path.join(self.data_dir, '{}_pupil_RAW_downsample.csv'.format(self.subjectid)), index=False)
+        self.pupil_data.to_csv(os.path.join(self.data_dir, '{}_pupil_RAW_downsample.csv'.format(self.subjectid)), index=False)
 
         self.merged_data_raw = self.merged_data.copy(deep=True)
         self.merged_data = self.merged_data.loc[pd.RangeIndex(
@@ -673,6 +673,69 @@ class pypil(object):
                 # Reject samples too near a gap
                 self.merged_data.is_valid = self.merged_data.is_valid & ~near_gap
 
+    def _mad_deviation_filter(self):
+        '''
+        Filters pupil diameter timeseries based on the deviation fromt a smooth trendline.
+
+        Currently does not support upsampling. Interpolation will occur at the same time scale
+        of the self.merged_data.time pandas.Series.
+        '''
+        # [isValid_Running,filtData] = madDeviationFilter(t_ms,dia,isValid_In,filtSettings)
+
+        # % madDeviationFilter filters a diameter timeseries based on the deviation
+        # % from a smooth trendline.
+        # %
+        # %--------------------------------------------------------------------------
+
+        # Get Relevant Settings
+        n_passes = self.filter_settings['residuals_filter_passes']
+
+        # If an when I incorporate upsampling this is were it will occur.
+        # time_interp = np.arange(self.merged_data.time.iloc[0], self.merged_data.time.iloc[-1],
+        #                         (1000 / self.filter_settings['residuals_filter_interpFs']))
+
+        assert (self.merged_data.is_valid.sum() > 3  # Arbitrary got from Kret & Sjak-Shie (2018)
+                ), "There needs to be greater than 3 valid time points to interpolate."
+
+        self.smoothed_per_pass = pd.DataFrame(columns=['{}{}'.format(y, x) for x in range(n_passes)
+                                                       for y in ['resid', 'smooth', 'is_valid']],
+                                              index=self.merged_data.time.index)
+        is_valid_loop = self.merged_data.is_valid
+        is_done = False
+        for pass_ind in range(n_passes):
+
+            # If the last filter did not have any effect, neither will any of the others
+            if is_done:
+                break
+
+            # Tracking Valid trials
+            is_valid_start = is_valid_loop
+
+            # Calculate and Smooth baseline and deviation
+            self._deviation_calc(pass_ind)
+
+            # Calculate MAD stats
+            _, thresh = self._mad_calc(self.smoothed_per_pass['resid{}'.format(pass_ind)])
+
+            # Remove outliers and remove isolated rejection filter
+            is_valid_loop = (self.smoothed_per_pass['resid{}'.format(pass_ind)] <= thresh) & self.merged_data.is_valid
+            self.valid_time = self.merged_data.time[is_valid_loop]
+            self._remove_loners()
+            is_valid_loop = self.merged_data.is_valid
+
+            # Log loop vars
+            self.smoothed_per_pass['is_valid{}'.format(pass_ind)] = is_valid_loop
+
+            # Determine if this filter step had an effect
+            if pass_ind and all(is_valid_start == is_valid_loop):  # Can't be first pass e.g., pass_ind = 0
+                # Copy the current results to the other columns
+                for ind in range(pass_ind + 1, n_passes):
+                    self.smoothed_per_pass['is_valid{}'.format(ind)] = self.smoothed_per_pass['is_valid{}'.format(ind - 1)]
+                    self.smoothed_per_pass['smooth{}'.format(ind)] = self.smoothed_per_pass['smooth{}'.format(ind - 1)]
+                    self.smoothed_per_pass['resid{}'.format(ind)] = self.smoothed_per_pass['resid{}'.format(ind - 1)]
+
+                is_done = True
+    
     def _mad_deviation_filter2(self):
         '''
         Test out the part that differs
