@@ -169,7 +169,7 @@ combine_and_save_all_data = function() {
   combined_data = data.frame(matrix(nrow = 0, ncol = length(data_cols))) 
   colnames(combined_data) = data_cols
   
-  data_file_paths = list.files(path="../data/raw/merged_pupil_first_row_AFTER", 
+  data_file_paths = list.files(path="../data/merged_pupil_first_row_AFTER", 
                                pattern=".csv", all.files=TRUE, 
                                full.names=TRUE)
   subject = 1
@@ -262,7 +262,7 @@ get_a_subjects_data = function(file_path) {
                    'choice', 'v', 'ru', 'tu', 'trial_baseline')]
   
   subject = unique(data$id)
-  subject_pupil_data <- read.csv(paste("../data/raw/merged_pupil_long_AFTER/", 
+  subject_pupil_data <- read.csv(paste("../data/merged_pupil_long_AFTER/", 
                                        sprintf("%s_merged_pupil_long_AFTER.csv", 
                                                subject), sep = ""))
   
