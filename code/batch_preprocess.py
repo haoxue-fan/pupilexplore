@@ -30,8 +30,6 @@ overwrite = False
 idx = 0
 baseline_flag = True
 
-# part_dirs = ['../../Real_Subject_Data/29XXOO_(06-13-2022)/']
-
 for data_dir in part_dirs:
     if idx <= idx_max:
         try:
